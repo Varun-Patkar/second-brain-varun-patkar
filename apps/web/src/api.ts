@@ -8,7 +8,9 @@
 import type { ChatTurnRequest, SessionInfo, TurnStreamEvent } from "@second-brain/shared";
 
 /** Worker base URL, injected at build time (see .env / SETUP). */
-const WORKER_URL = (import.meta.env.VITE_WORKER_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+const WORKER_URL =
+  (import.meta.env.VITE_WORKER_URL as string | undefined)?.replace(/\/$/, "") ??
+  "https://second-brain.varun-patkar.workers.dev";
 
 const TOKEN_KEY = "sb.session";
 
