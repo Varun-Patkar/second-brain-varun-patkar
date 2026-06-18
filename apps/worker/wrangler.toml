@@ -1,0 +1,40 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "second-brain"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# --- Non-secret vars (safe to commit). Secrets are set via `wrangler secret put`. ---
+[vars]
+# GitHub repo that holds the wiki, "owner/repo".
+GH_REPO = "Varun-Patkar/second-brain-varun-patkar"
+# Branch holding the markdown wiki. NEVER merges to main.
+BRAIN_BRANCH = "brain"
+# Origin allowed to call this worker (your GitHub Pages site). Lock CORS to it.
+ALLOWED_ORIGIN = "https://varun-patkar.github.io"
+# OAuth app client id (public; the SECRET is set via `wrangler secret put GH_CLIENT_SECRET`).
+GH_CLIENT_ID = "REPLACE_WITH_OAUTH_CLIENT_ID"
+# Comma-separated Copilot model ids the UI may pick.
+COPILOT_MODELS = "gpt-4o,o3-mini"
+COPILOT_DEFAULT_MODEL = "gpt-4o"
+
+# --- D1: knowledge graph + FTS5 + outbox. Create with:
+#     wrangler d1 create second_brain   -> paste the returned database_id below. ---
+[[d1_databases]]
+binding = "DB"
+database_name = "second_brain"
+database_id = "4c4fd5ce-5663-41f3-a049-78fda008745e"
+migrations_dir = "migrations"
+
+# --- KV: hot-node + graph-index cache. Create with:
+#     wrangler kv namespace create CACHE  -> paste the returned id below. ---
+[[kv_namespaces]]
+binding = "CACHE"
+id = "b5e06ce525c147a79a87198831ecb74c"
+
+# Secrets to set (NOT here):
+#   wrangler secret put COPILOT_TOKEN     # GitHub Copilot token
+#   wrangler secret put GH_CLIENT_SECRET  # OAuth app client secret
+#   wrangler secret put GH_TOKEN          # PAT/installation token for brain-branch read/write
+#   wrangler secret put OWNER_GH_ID       # your numeric GitHub user id (only allowed user)
+#   wrangler secret put SESSION_SECRET    # random 32+ byte secret for signing sessions

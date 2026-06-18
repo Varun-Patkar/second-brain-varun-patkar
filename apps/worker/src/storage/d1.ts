@@ -1,0 +1,247 @@
+/**
+ * D1 adapter: the knowledge graph index (nodes, edges), FTS5 retrieval, access
+ * counters, and the write-ahead outbox. Every logical operation charges one
+ * subrequest against the turn budget.
+ *
+ * @packageDocumentation
+ */
+
+import type { BrainNode, BrainEdge, SearchResult, NeighborRef, NodeType, EdgeType } from "@second-brain/shared";
+import type { TurnContext } from "../runtime/context.js";
+import { nowIso } from "../util/ids.js";
+
+interface NodeRow {
+  id: string;
+  type: string;
+  title: string;
+  md_path: string;
+  summary: string;
+  tags: string;
+  ref_count: number;
+  created_at: string;
+  updated_at: string;
+  last_accessed: string | null;
+  archived: number;
+  content_hash: string;
+}
+
+function rowToNode(r: NodeRow): BrainNode {
+  return {
+    id: r.id,
+    type: r.type as NodeType,
+    title: r.title,
+    mdPath: r.md_path,
+    summary: r.summary,
+    refCount: r.ref_count,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    lastAccessed: r.last_accessed ?? undefined,
+    archived: r.archived === 1,
+  };
+}
+
+/** Turn a free-text query into a safe FTS5 MATCH expression (OR of quoted terms). */
+function toFtsQuery(query: string): string {
+  const terms = query
+    .toLowerCase()
+    .replace(/["()*:^-]/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length > 1)
+    .slice(0, 12);
+  if (terms.length === 0) return '""';
+  return terms.map((t) => `"${t}"`).join(" OR ");
+}
+
+/** Fetch 1-hop neighbors for a set of node ids. */
+async function neighborsOf(ctx: TurnContext, ids: string[]): Promise<Map<string, NeighborRef[]>> {
+  const map = new Map<string, NeighborRef[]>();
+  if (ids.length === 0) return map;
+  ctx.budget.d1();
+  const placeholders = ids.map(() => "?").join(",");
+  const sql = `
+    SELECT e.src AS src, e.dst AS dst, e.type AS etype,
+           ns.type AS src_type, nd.type AS dst_type
+    FROM edges e
+    JOIN nodes ns ON ns.id = e.src
+    JOIN nodes nd ON nd.id = e.dst
+    WHERE e.src IN (${placeholders}) OR e.dst IN (${placeholders})`;
+  const res = await ctx.env.DB.prepare(sql)
+    .bind(...ids, ...ids)
+    .all<{ src: string; dst: string; etype: string; src_type: string; dst_type: string }>();
+  for (const row of res.results ?? []) {
+    if (ids.includes(row.src)) {
+      const list = map.get(row.src) ?? [];
+      list.push({ id: row.dst, type: row.dst_type as NodeType, edge: row.etype as EdgeType });
+      map.set(row.src, list);
+    }
+    if (ids.includes(row.dst)) {
+      const list = map.get(row.dst) ?? [];
+      list.push({ id: row.src, type: row.src_type as NodeType, edge: row.etype as EdgeType });
+      map.set(row.dst, list);
+    }
+  }
+  return map;
+}
+
+/** FTS5 keyword search + 1-hop graph expansion. Returns summaries only. */
+export async function search(
+  ctx: TurnContext,
+  query: string,
+  k = 5,
+  types?: NodeType[],
+): Promise<SearchResult[]> {
+  ctx.budget.d1();
+  const match = toFtsQuery(query);
+  const typeFilter = types && types.length > 0 ? `AND n.type IN (${types.map(() => "?").join(",")})` : "";
+  const sql = `
+    SELECT n.id, n.type, n.title, n.md_path, n.summary, bm25(nodes_fts) AS score
+    FROM nodes_fts
+    JOIN nodes n ON n.id = nodes_fts.node_id
+    WHERE nodes_fts MATCH ? AND n.archived = 0 ${typeFilter}
+    ORDER BY score
+    LIMIT ?`;
+  const binds: unknown[] = [match, ...(types ?? []), k];
+  const res = await ctx.env.DB.prepare(sql)
+    .bind(...binds)
+    .all<{ id: string; type: string; title: string; md_path: string; summary: string; score: number }>();
+  const rows = res.results ?? [];
+  const ids = rows.map((r) => r.id);
+  const neighbors = await neighborsOf(ctx, ids);
+  return rows.map((r) => ({
+    id: r.id,
+    type: r.type as NodeType,
+    title: r.title,
+    summary: r.summary,
+    mdPath: r.md_path,
+    score: -r.score, // bm25 is lower-is-better; negate so higher = more relevant
+    neighbors: neighbors.get(r.id) ?? [],
+  }));
+}
+
+/** Load full node rows by id. */
+export async function getNodes(ctx: TurnContext, ids: string[]): Promise<BrainNode[]> {
+  if (ids.length === 0) return [];
+  ctx.budget.d1();
+  const placeholders = ids.map(() => "?").join(",");
+  const res = await ctx.env.DB.prepare(`SELECT * FROM nodes WHERE id IN (${placeholders})`)
+    .bind(...ids)
+    .all<NodeRow>();
+  return (res.results ?? []).map(rowToNode);
+}
+
+/** Idempotent node upsert: no-op when content_hash is unchanged. Also refreshes
+ * the standalone FTS index for each node (delete + reinsert). */
+export async function upsertNodes(
+  ctx: TurnContext,
+  nodes: Array<BrainNode & { tags?: string[]; contentHash: string }>,
+): Promise<void> {
+  if (nodes.length === 0) return;
+  ctx.budget.d1();
+  const upsert = ctx.env.DB.prepare(`
+    INSERT INTO nodes (id, type, title, md_path, summary, tags, ref_count, created_at, updated_at, last_accessed, archived, content_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      type = excluded.type, title = excluded.title, md_path = excluded.md_path,
+      summary = excluded.summary, tags = excluded.tags, updated_at = excluded.updated_at,
+      content_hash = excluded.content_hash
+    WHERE nodes.content_hash <> excluded.content_hash`);
+  const ftsDelete = ctx.env.DB.prepare("DELETE FROM nodes_fts WHERE node_id = ?");
+  const ftsInsert = ctx.env.DB.prepare(
+    "INSERT INTO nodes_fts (node_id, title, summary, tags) VALUES (?, ?, ?, ?)",
+  );
+  const statements: D1PreparedStatement[] = [];
+  for (const n of nodes) {
+    const tags = (n.tags ?? []).join(" ");
+    statements.push(
+      upsert.bind(
+        n.id,
+        n.type,
+        n.title,
+        n.mdPath,
+        n.summary,
+        tags,
+        n.refCount,
+        n.createdAt,
+        n.updatedAt,
+        n.lastAccessed ?? null,
+        n.archived ? 1 : 0,
+        n.contentHash,
+      ),
+      ftsDelete.bind(n.id),
+      ftsInsert.bind(n.id, n.title, n.summary, tags),
+    );
+  }
+  await ctx.env.DB.batch(statements);
+}
+
+/** Idempotent edge upsert keyed on (src, dst, type). */
+export async function upsertEdges(ctx: TurnContext, edges: BrainEdge[]): Promise<void> {
+  if (edges.length === 0) return;
+  ctx.budget.d1();
+  const stmt = ctx.env.DB.prepare(`
+    INSERT INTO edges (id, src, dst, type, weight) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(src, dst, type) DO UPDATE SET weight = excluded.weight`);
+  await ctx.env.DB.batch(edges.map((e) => stmt.bind(e.id, e.src, e.dst, e.type, e.weight)));
+}
+
+/** Remove a node and its edges from the index (used when content is trashed). */
+export async function deleteNode(ctx: TurnContext, id: string): Promise<void> {
+  ctx.budget.d1();
+  await ctx.env.DB.batch([
+    ctx.env.DB.prepare("DELETE FROM nodes_fts WHERE node_id = ?").bind(id),
+    ctx.env.DB.prepare("DELETE FROM edges WHERE src = ? OR dst = ?").bind(id, id),
+    ctx.env.DB.prepare("DELETE FROM nodes WHERE id = ?").bind(id),
+  ]);
+}
+
+/** Bump ref counts + last_accessed and append an access-log row for each id. */
+export async function bumpAccess(
+  ctx: TurnContext,
+  ids: string[],
+  kind: "read" | "write" | "edge_traverse",
+): Promise<void> {
+  if (ids.length === 0) return;
+  ctx.budget.d1();
+  const ts = nowIso();
+  const update = ctx.env.DB.prepare("UPDATE nodes SET ref_count = ref_count + 1, last_accessed = ? WHERE id = ?");
+  const log = ctx.env.DB.prepare("INSERT INTO access_log (node_id, ts, kind) VALUES (?, ?, ?)");
+  await ctx.env.DB.batch([
+    ...ids.map((id) => update.bind(ts, id)),
+    ...ids.map((id) => log.bind(id, ts, kind)),
+  ]);
+}
+
+/** Stage a graph mutation in the outbox (status=pending). */
+export async function stageOutbox(ctx: TurnContext, id: string, payload: unknown): Promise<void> {
+  ctx.budget.d1();
+  await ctx.env.DB.prepare("INSERT INTO outbox (id, payload, status, created_at) VALUES (?, ?, 'pending', ?)")
+    .bind(id, JSON.stringify(payload), nowIso())
+    .run();
+}
+
+/** Mark an outbox row done and record the commit it was bound to. */
+export async function completeOutbox(ctx: TurnContext, id: string, commitSha: string): Promise<void> {
+  ctx.budget.d1();
+  await ctx.env.DB.prepare("UPDATE outbox SET status = 'done', commit_sha = ? WHERE id = ?")
+    .bind(commitSha, id)
+    .run();
+}
+
+/** Number of edges pointing *into* a node (used to gate safe trashing). */
+export async function inboundEdgeCount(ctx: TurnContext, id: string): Promise<number> {
+  ctx.budget.d1();
+  const row = await ctx.env.DB.prepare("SELECT COUNT(*) AS c FROM edges WHERE dst = ?")
+    .bind(id)
+    .first<{ c: number }>();
+  return row?.c ?? 0;
+}
+
+/** Repoint all edges from one node id to another (used when merging nodes). */
+export async function repointEdges(ctx: TurnContext, from: string, to: string): Promise<void> {
+  ctx.budget.d1();
+  await ctx.env.DB.batch([
+    ctx.env.DB.prepare("UPDATE OR IGNORE edges SET src = ? WHERE src = ?").bind(to, from),
+    ctx.env.DB.prepare("UPDATE OR IGNORE edges SET dst = ? WHERE dst = ?").bind(to, from),
+    ctx.env.DB.prepare("DELETE FROM edges WHERE src = dst"),
+  ]);
+}

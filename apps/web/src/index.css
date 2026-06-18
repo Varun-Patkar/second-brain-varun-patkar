@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-ink-950 text-slate-200 antialiased;
+    background-image:
+      radial-gradient(60rem 60rem at 110% -10%, rgba(124, 92, 255, 0.16), transparent 60%),
+      radial-gradient(50rem 50rem at -10% 110%, rgba(34, 211, 238, 0.12), transparent 55%);
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  /* Frosted-glass surface used across panels. */
+  .glass {
+    @apply border border-white/10 bg-white/[0.04] backdrop-blur-xl;
+  }
+
+  /* Gradient text accent. */
+  .text-gradient {
+    @apply bg-gradient-to-r from-glow-400 via-aqua-400 to-glow-400 bg-clip-text text-transparent;
+  }
+
+  /* Animated streaming caret. */
+  .caret::after {
+    content: "▍";
+    @apply ml-0.5 inline-block animate-pulse text-glow-400;
+  }
+
+  /* Thin custom scrollbar. */
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(124, 92, 255, 0.4) transparent;
+  }
+  .scroll-thin::-webkit-scrollbar {
+    width: 8px;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-glow-600/40;
+  }
+
+  /* Form control. */
+  .input {
+    @apply w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-200
+      outline-none transition placeholder:text-slate-600 focus:border-glow-400/60 focus:ring-2 focus:ring-glow-500/30;
+  }
+}
+
+/* Markdown rendering inside message bubbles. */
+.prose-brain {
+  @apply text-[0.95rem] leading-relaxed;
+}
+.prose-brain h1,
+.prose-brain h2,
+.prose-brain h3 {
+  @apply mb-2 mt-3 font-semibold text-white;
+}
+.prose-brain p {
+  @apply mb-2;
+}
+.prose-brain code {
+  @apply rounded bg-black/40 px-1.5 py-0.5 font-mono text-[0.85em] text-aqua-400;
+}
+.prose-brain pre {
+  @apply my-2 overflow-x-auto rounded-xl bg-black/50 p-3 font-mono text-sm;
+}
+.prose-brain ul {
+  @apply mb-2 list-disc pl-5;
+}
+.prose-brain a {
+  @apply text-glow-400 underline decoration-glow-400/40 underline-offset-2;
+}

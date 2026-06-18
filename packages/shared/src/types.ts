@@ -1,0 +1,196 @@
+/**
+ * Shared domain model for the second brain.
+ *
+ * The graph (Cloudflare D1) is a fast, rebuildable index over the markdown wiki.
+ * These types describe both the graph entities and the wire contracts exchanged
+ * between the static frontend and the Cloudflare Worker backend.
+ *
+ * @packageDocumentation
+ */
+
+/**
+ * Kind of a knowledge node. Kept as a string union with an open fallback so the
+ * agents can introduce new entity kinds without a code change, while common kinds
+ * stay strongly typed for editor autocomplete.
+ */
+export type NodeType =
+  | "person"
+  | "project"
+  | "concept"
+  | "journal"
+  | "archive"
+  | (string & {});
+
+/** Kind of a directed relationship between two nodes. */
+export type EdgeType =
+  | "relates_to"
+  | "part_of"
+  | "mentions"
+  | "depends_on"
+  | "authored_by"
+  | (string & {});
+
+/** A single knowledge node — one row in D1 `nodes`, one markdown file on `brain`. */
+export interface BrainNode {
+  /** Stable id, also stored in the markdown frontmatter. */
+  id: string;
+  type: NodeType;
+  title: string;
+  /** Path of the backing markdown file on the `brain` branch. */
+  mdPath: string;
+  /** One-line description shown in the graph index; full detail lives in markdown. */
+  summary: string;
+  /** How many times this node has been retrieved; drives archival. */
+  refCount: number;
+  createdAt: string;
+  updatedAt: string;
+  /** ISO timestamp of last access; drives archival. */
+  lastAccessed?: string | undefined;
+  archived: boolean;
+}
+
+/** A typed, directed edge between two nodes — one row in D1 `edges`. */
+export interface BrainEdge {
+  id: string;
+  src: string;
+  dst: string;
+  type: EdgeType;
+  weight: number;
+}
+
+/** The neighbor of a node returned during 1-hop graph expansion. */
+export interface NeighborRef {
+  id: string;
+  type: NodeType;
+  edge: EdgeType;
+}
+
+/**
+ * A retrieval hit. Search returns **summaries only** (no markdown bodies) so the
+ * agent must make a deliberate second `read_markdown` call for the few it needs.
+ */
+export interface SearchResult {
+  id: string;
+  type: NodeType;
+  title: string;
+  summary: string;
+  mdPath: string;
+  /** BM25 relevance score from D1 FTS5 (higher = better). */
+  score: number;
+  neighbors: NeighborRef[];
+}
+
+/** The full content of a node, including parsed frontmatter. */
+export interface NodeDocument {
+  id: string;
+  mdPath: string;
+  /** Markdown body below the frontmatter. */
+  body: string;
+  frontmatter: NodeFrontmatter;
+}
+
+/** YAML frontmatter mirrored into every markdown file so D1 is rebuildable. */
+export interface NodeFrontmatter {
+  id: string;
+  type: NodeType;
+  title: string;
+  summary: string;
+  createdAt: string;
+  updatedAt: string;
+  tags?: string[];
+  edges?: Array<{ to: string; type: EdgeType }>;
+}
+
+/** A single write requested by the brain agent (batched into one git commit). */
+export interface BrainWrite {
+  /** Omit to create a new node (server assigns an id). */
+  id?: string;
+  type: NodeType;
+  title: string;
+  summary: string;
+  body: string;
+  tags?: string[];
+  edges?: Array<{ to: string; type: EdgeType }>;
+}
+
+/** Result of applying a batch of writes. */
+export interface WriteResult {
+  /** SHA of the single commit produced for the whole batch. */
+  commitSha: string;
+  results: Array<{ id: string; path: string; action: "created" | "updated" }>;
+}
+
+/** A consolidation operation proposed by the consolidator (dry-run before apply). */
+export type ConsolidationOp =
+  | { op: "merge"; survivor: string; absorbed: string; reason: string }
+  | { op: "link"; src: string; dst: string; type: EdgeType; reason: string }
+  | { op: "trash"; id: string; reason: string };
+
+/** Outcome of a consolidation pass over a touched subgraph. */
+export interface ConsolidationResult {
+  plan: ConsolidationOp[];
+  applied: ConsolidationOp[];
+  /** Ops a validator rejected or deferred to the monthly job. */
+  deferred: ConsolidationOp[];
+}
+
+/* ------------------------------------------------------------------ */
+/* Wire contracts: frontend <-> worker                                 */
+/* ------------------------------------------------------------------ */
+
+/** Which LLM provider a turn should use. */
+export type ProviderChoice = "copilot" | "lmstudio";
+
+/** LM Studio connection details supplied by the user per request (never stored). */
+export interface LmStudioConfig {
+  /** Devtunnel URL of the local LM Studio OpenAI-compatible endpoint. */
+  baseUrl: string;
+  /** Optional API key; sent over TLS, never logged or persisted. */
+  key?: string;
+  /** Model id to request. */
+  model: string;
+}
+
+/** Request body for a chat turn. */
+export interface ChatTurnRequest {
+  message: string;
+  provider: ProviderChoice;
+  /** Copilot model id (ignored when provider is lmstudio). */
+  model?: string;
+  lmStudio?: LmStudioConfig;
+  /** Resume token from a previous partial turn (budget checkpoint). */
+  resumeToken?: string;
+}
+
+/** Per-turn budget/observability counters surfaced to the UI. */
+export interface TurnMetrics {
+  subrequestsUsed: number;
+  llmCalls: number;
+  gitCalls: number;
+  d1Calls: number;
+  dirtySetSize: number;
+}
+
+/** One step in the agent trace shown in the UI. */
+export interface TraceEvent {
+  agent: "brain" | "consolidator";
+  tool?: string;
+  detail: string;
+  at: string;
+}
+
+/** Server-sent event payloads streamed to the frontend during a turn. */
+export type TurnStreamEvent =
+  | { type: "text"; text: string }
+  | { type: "reasoning"; text: string }
+  | { type: "trace"; event: TraceEvent }
+  | { type: "metrics"; metrics: TurnMetrics }
+  | { type: "partial"; resumeToken: string; metrics: TurnMetrics }
+  | { type: "error"; code: string; message: string }
+  | { type: "done"; metrics: TurnMetrics };
+
+/** The authenticated owner session returned after GitHub OAuth. */
+export interface SessionInfo {
+  login: string;
+  avatarUrl: string;
+}

@@ -1,0 +1,81 @@
+name: Monthly brain maintenance
+
+# Runs archival + a D1 snapshot once a month (and on manual dispatch).
+# Free: GitHub Actions. Reaches D1 via Wrangler using a Cloudflare API token.
+on:
+  schedule:
+    - cron: "0 3 1 * *" # 03:00 UTC on the 1st of each month
+  workflow_dispatch: {}
+
+permissions:
+  contents: write # needed to push the snapshot to the brain branch
+
+concurrency:
+  group: brain-maintenance
+  cancel-in-progress: false
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      DB_NAME: second_brain
+    steps:
+      - name: Checkout code (main)
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install worker deps (provides wrangler)
+        working-directory: apps/worker
+        run: npm install --no-audit --no-fund
+
+      # 1) ARCHIVAL: flag stale, never-referenced nodes as archived (excluded from search).
+      - name: Archive stale nodes
+        working-directory: apps/worker
+        run: |
+          npx wrangler d1 execute "$DB_NAME" --remote --command \
+            "UPDATE nodes SET archived = 1 \
+             WHERE archived = 0 AND ref_count = 0 \
+             AND (last_accessed IS NULL OR last_accessed < datetime('now','-90 days'));"
+
+      # 2) RECONCILE: re-apply any outbox rows still pending (interrupted turns).
+      #    NOTE: full markdown<->D1 reconciliation is a follow-up; for now we surface
+      #    pending rows so they are visible in the snapshot/logs.
+      - name: Report pending outbox
+        working-directory: apps/worker
+        run: |
+          npx wrangler d1 execute "$DB_NAME" --remote --command \
+            "SELECT id, created_at FROM outbox WHERE status = 'pending';"
+
+      # 3) SNAPSHOT: export the whole DB to a SQL dump for disaster recovery.
+      - name: Export D1 snapshot
+        working-directory: apps/worker
+        run: |
+          mkdir -p _snapshot
+          npx wrangler d1 export "$DB_NAME" --remote --output _snapshot/graph.sql
+          node -e "const fs=require('fs');fs.writeFileSync('_snapshot/graph.meta.json',JSON.stringify({snapshotAt:new Date().toISOString(),note:'D1 disaster-recovery snapshot; not read at runtime'},null,2))"
+
+      # 4) Commit the snapshot onto the brain branch (never touches main).
+      - name: Commit snapshot to brain branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          BRAIN_BRANCH="brain"
+          TMP="$(mktemp -d)"
+          git config --global user.name "brain-bot"
+          git config --global user.email "brain-bot@users.noreply.github.com"
+          git clone --depth 1 --branch "$BRAIN_BRANCH" \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$TMP"
+          mkdir -p "$TMP/_backup"
+          cp apps/worker/_snapshot/graph.sql "$TMP/_backup/graph.sql"
+          cp apps/worker/_snapshot/graph.meta.json "$TMP/_backup/graph.meta.json"
+          cd "$TMP"
+          git add _backup/graph.sql _backup/graph.meta.json
+          git commit -m "brain: monthly D1 snapshot" || echo "No changes to commit"
+          git push origin "$BRAIN_BRANCH"

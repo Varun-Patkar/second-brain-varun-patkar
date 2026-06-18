@@ -1,0 +1,15 @@
+{
+  "name": "@second-brain/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared domain types and API contracts for the second brain (worker + web).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

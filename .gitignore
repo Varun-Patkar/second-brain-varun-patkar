@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+.wrangler/
+.mf/
+
+# Env / secrets — NEVER commit
+.dev.vars
+.env
+.env.*
+!.env.example
+*.local
+
+# Cloudflare / Wrangler
+.wrangler/state/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+*.tsbuildinfo
+
+# Vite
+apps/web/dist/
