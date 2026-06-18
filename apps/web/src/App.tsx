@@ -7,9 +7,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Brain } from "lucide-react";
 import type { SessionInfo } from "@second-brain/shared";
-import { clearToken, completeLogin, getSession } from "./api.js";
+import { clearToken, completeLogin, getModels, getSession } from "./api.js";
 import { DEFAULT_PROVIDER_CONFIG, type ProviderConfig } from "./types.js";
 import { useChat } from "./hooks/useChat.js";
 import { Login } from "./components/Login.js";
@@ -25,6 +25,7 @@ export function App() {
   const [auth, setAuth] = useState<AuthState>("loading");
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [cfg, setCfg] = useState<ProviderConfig>(DEFAULT_PROVIDER_CONFIG);
+  const [models, setModels] = useState<string[]>([]);
   const chat = useChat();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -60,6 +61,11 @@ export function App() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [chat.messages, chat.streaming]);
+
+  // Once authenticated, load the dynamic Copilot model list.
+  useEffect(() => {
+    if (auth === "authed") void getModels().then((r) => setModels(r.models.map((m) => m.id)));
+  }, [auth]);
 
   const signOut = () => {
     clearToken();
@@ -119,7 +125,7 @@ export function App() {
 
         {/* Sidebar */}
         <aside className="hidden min-h-0 flex-col gap-3 lg:flex">
-          <ProviderPicker cfg={cfg} onChange={setCfg} />
+          <ProviderPicker cfg={cfg} onChange={setCfg} models={models} />
           <div className="min-h-0 flex-1">
             <Trace trace={chat.trace} metrics={chat.metrics} />
           </div>
@@ -137,7 +143,9 @@ function EmptyState() {
       className="grid h-full place-items-center text-center"
     >
       <div className="max-w-sm">
-        <div className="mx-auto mb-4 h-14 w-14 animate-float rounded-2xl bg-gradient-to-br from-glow-500 to-aqua-400 opacity-80 blur-[1px]" />
+        <div className="mx-auto mb-4 grid h-16 w-16 animate-float place-items-center rounded-2xl bg-gradient-to-br from-glow-500 to-aqua-400 shadow-lg shadow-glow-600/30">
+          <Brain className="h-8 w-8 text-white" />
+        </div>
         <h2 className="mb-1 text-lg font-semibold text-slate-200">Your brain is listening</h2>
         <p className="text-sm text-slate-500">
           Ask a question to retrieve knowledge, or tell it something new to remember. Every turn is

@@ -1,19 +1,39 @@
-/** Provider + model picker (Copilot / LM Studio). */
+/** Provider + model picker (GitHub Copilot / LM Studio). */
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Cpu, Server } from "lucide-react";
 import type { ProviderConfig } from "../types.js";
 
-const COPILOT_MODELS = ["gpt-4o", "o3-mini"];
+/** Static fallback list, used only if the dynamic /models fetch returns nothing. */
+const FALLBACK_COPILOT_MODELS = [
+  "claude-sonnet-4.6",
+  "claude-sonnet-4.5",
+  "claude-haiku-4.5",
+  "claude-opus-4.8",
+  "claude-opus-4.7",
+  "claude-opus-4.6",
+  "claude-opus-4.5",
+  "gpt-5.5",
+  "gpt-5.4",
+  "gpt-5.3-codex",
+  "gpt-5.4-mini",
+  "gpt-5-mini",
+  "gemini-3.1-pro-preview",
+  "gemini-3.5-flash",
+  "mai-code-1-flash-internal",
+];
 
 export function ProviderPicker({
   cfg,
   onChange,
+  models,
 }: {
   cfg: ProviderConfig;
   onChange: (next: ProviderConfig) => void;
+  models?: string[];
 }) {
   const set = (patch: Partial<ProviderConfig>) => onChange({ ...cfg, ...patch });
+  const modelOptions = models && models.length > 0 ? models : FALLBACK_COPILOT_MODELS;
 
   return (
     <div className="glass rounded-2xl p-3">
@@ -22,7 +42,7 @@ export function ProviderPicker({
           active={cfg.provider === "copilot"}
           onClick={() => set({ provider: "copilot" })}
           icon={<Cpu className="h-4 w-4" />}
-          label="Copilot"
+          label="GitHub Copilot"
         />
         <TabButton
           active={cfg.provider === "lmstudio"}
@@ -47,7 +67,7 @@ export function ProviderPicker({
                 onChange={(e) => set({ copilotModel: e.target.value })}
                 className="input"
               >
-                {COPILOT_MODELS.map((m) => (
+                {modelOptions.map((m) => (
                   <option key={m} value={m}>
                     {m}
                   </option>

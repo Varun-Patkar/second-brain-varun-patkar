@@ -5,7 +5,7 @@
  * @packageDocumentation
  */
 
-import type { ChatTurnRequest, SessionInfo, TurnStreamEvent } from "@second-brain/shared";
+import type { ChatTurnRequest, ModelsResponse, SessionInfo, TurnStreamEvent } from "@second-brain/shared";
 
 /** Worker base URL, injected at build time (see .env / SETUP). */
 const WORKER_URL =
@@ -59,6 +59,17 @@ export async function getSession(): Promise<SessionInfo | null> {
     return null;
   }
   return (await res.json()) as SessionInfo;
+}
+
+/** Fetch the dynamic list of available Copilot models (empty on failure). */
+export async function getModels(): Promise<ModelsResponse> {
+  try {
+    const res = await fetch(`${WORKER_URL}/models`, { headers: authHeaders() });
+    if (!res.ok) return { models: [], default: "" };
+    return (await res.json()) as ModelsResponse;
+  } catch {
+    return { models: [], default: "" };
+  }
 }
 
 /** Stream a chat turn, yielding parsed SSE events. */

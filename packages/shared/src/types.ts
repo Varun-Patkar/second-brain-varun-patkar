@@ -194,3 +194,15 @@ export interface SessionInfo {
   login: string;
   avatarUrl: string;
 }
+
+/** A Copilot model the UI can offer. */
+export interface CopilotModelInfo {
+  id: string;
+  name: string;
+}
+
+/** Response of the worker `/models` endpoint. */
+export interface ModelsResponse {
+  models: CopilotModelInfo[];
+  default: string;
+}

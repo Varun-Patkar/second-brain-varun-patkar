@@ -24,7 +24,7 @@ export interface ProviderConfig {
 
 export const DEFAULT_PROVIDER_CONFIG: ProviderConfig = {
   provider: "copilot",
-  copilotModel: "gpt-4o",
+  copilotModel: "claude-sonnet-4.6",
   lmStudioUrl: "",
   lmStudioKey: "",
   lmStudioModel: "local-model",

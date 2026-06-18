@@ -12,15 +12,18 @@ import type { ModelCapabilities } from "agent-framework-js";
 import type { ChatTurnRequest } from "@second-brain/shared";
 import type { Env } from "../env.js";
 
-/** Known Copilot model capabilities; unknown ids fall back to a safe default. */
+/** Map a Copilot model id to capabilities by family; unknown ids get a safe default. */
 function copilotModelCaps(id: string): ModelCapabilities {
-  switch (id) {
-    case "o3-mini":
-      return { model: id, maxInputTokens: 200000, maxOutputTokens: 100000, supportsReasoning: true };
-    case "gpt-4o":
-    default:
-      return { model: id, maxInputTokens: 128000, maxOutputTokens: 16000, supportsVision: true };
+  if (id.startsWith("claude")) {
+    return { model: id, maxInputTokens: 200000, maxOutputTokens: 64000, supportsVision: true };
   }
+  if (id.startsWith("gpt-5")) {
+    return { model: id, maxInputTokens: 272000, maxOutputTokens: 128000, supportsVision: true };
+  }
+  if (id.startsWith("gemini")) {
+    return { model: id, maxInputTokens: 1048576, maxOutputTokens: 65536, supportsVision: true };
+  }
+  return { model: id, maxInputTokens: 128000, maxOutputTokens: 16000 };
 }
 
 /** Resolve the provider + model id for a chat turn. */
@@ -38,14 +41,14 @@ export function buildProvider(env: Env, req: ChatTurnRequest): { provider: Provi
     return { provider, model: cfg.model };
   }
 
-  // Default: GitHub Copilot.
-  const ids = env.COPILOT_MODELS.split(",").map((s) => s.trim()).filter(Boolean);
-  const models = (ids.length > 0 ? ids : ["gpt-4o"]).map(copilotModelCaps);
-  const defaultModel = env.COPILOT_DEFAULT_MODEL || models[0]!.model;
+  // Default: GitHub Copilot. Build a single-model provider from the requested
+  // model so the UI can pick any model Copilot offers (see the /models endpoint)
+  // without a fixed allow-list to keep in sync.
+  const model = req.model || env.COPILOT_DEFAULT_MODEL || "claude-sonnet-4.6";
   const provider = createCopilotProvider({
     getCredential: () => env.COPILOT_TOKEN,
-    models,
-    defaultModel,
+    models: [copilotModelCaps(model)],
+    defaultModel: model,
   });
-  return { provider, model: req.model || defaultModel };
+  return { provider, model };
 }

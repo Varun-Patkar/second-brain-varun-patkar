@@ -13,10 +13,10 @@ BRAIN_BRANCH = "brain"
 # Origin allowed to call this worker (your GitHub Pages site). Lock CORS to it.
 ALLOWED_ORIGIN = "https://varun-patkar.github.io"
 # OAuth app client id (public; the SECRET is set via `wrangler secret put GH_CLIENT_SECRET`).
-GH_CLIENT_ID = "REPLACE_WITH_OAUTH_CLIENT_ID"
+GH_CLIENT_ID = "Ov23lipmkMoqhgeOwbvs"
 # Comma-separated Copilot model ids the UI may pick.
-COPILOT_MODELS = "gpt-4o,o3-mini"
-COPILOT_DEFAULT_MODEL = "gpt-4o"
+COPILOT_MODELS = "claude-sonnet-4.6,claude-sonnet-4.5,claude-haiku-4.5,claude-opus-4.8,claude-opus-4.7,claude-opus-4.6,claude-opus-4.5,gpt-5.5,gpt-5.4,gpt-5.3-codex,gpt-5.4-mini,gpt-5-mini,gemini-3.1-pro-preview,gemini-3.5-flash,mai-code-1-flash-internal"
+COPILOT_DEFAULT_MODEL = "claude-sonnet-4.6"
 
 # --- D1: knowledge graph + FTS5 + outbox. Create with:
 #     wrangler d1 create second_brain   -> paste the returned database_id below. ---

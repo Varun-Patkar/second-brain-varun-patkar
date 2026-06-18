@@ -15,6 +15,7 @@ import type { ChatTurnRequest, TurnStreamEvent } from "@second-brain/shared";
 import type { Env } from "./env.js";
 import { buildAuthorizeUrl, completeOAuth } from "./auth/oauth.js";
 import { verifySession } from "./auth/session.js";
+import { fetchCopilotModels } from "./providers/copilotModels.js";
 import { runTurn } from "./turn.js";
 
 /** Build CORS headers, allowing the configured Pages origin and localhost dev. */
@@ -85,6 +86,19 @@ export default {
       const session = await authed(env, req);
       if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
       return json(session, { status: 200 }, corsHeaders);
+    }
+
+    // --- Available Copilot models (dynamic list) ---
+    if (url.pathname === "/models" && req.method === "GET") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      try {
+        const models = await fetchCopilotModels(env);
+        return json({ models, default: env.COPILOT_DEFAULT_MODEL }, { status: 200 }, corsHeaders);
+      } catch {
+        // Fall back gracefully; the frontend keeps a static list.
+        return json({ models: [], default: env.COPILOT_DEFAULT_MODEL }, { status: 200 }, corsHeaders);
+      }
     }
 
     // --- Chat (SSE) ---
