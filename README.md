@@ -3,6 +3,8 @@
 A personal, single-user, **free-for-life** LLM-maintained knowledge base. You chat with it; a team
 of agents plans, retrieves, writes, and continuously tidies a markdown wiki on your behalf.
 
+**Live:** https://varun-patkar.github.io/second-brain-varun-patkar/
+
 - **Frontend** — static React app on **GitHub Pages** (chat UI, provider picker, GitHub login).
 - **Backend** — a **Cloudflare Worker** (free tier) built on [`agent-framework-js`](https://www.npmjs.com/package/agent-framework-js).
 - **Storage** — **Cloudflare D1** (graph + FTS5 + outbox) + a markdown wiki on a dedicated git
