@@ -2,7 +2,7 @@
   "id": "8b281c86-9ab9-4b9f-a786-ac0979326f93",
   "title": "Who am i. give me my bio basicaly",
   "createdAt": "2026-06-20T09:07:13.934Z",
-  "updatedAt": "2026-06-20T09:07:13.934Z",
+  "updatedAt": "2026-06-20T09:08:32.243Z",
   "messages": [
     {
       "role": "user",
@@ -74,6 +74,30 @@
         "llmCalls": 0,
         "gitCalls": 1,
         "d1Calls": 3,
+        "dirtySetSize": 0,
+        "toolsEnabled": 4,
+        "skillsEnabled": 0
+      }
+    },
+    {
+      "role": "user",
+      "content": "Hi"
+    },
+    {
+      "role": "assistant",
+      "content": "Hey Varun! 👋 How's it going? What can I help you with today?",
+      "segments": [
+        {
+          "type": "text",
+          "text": "Hey Varun! 👋 How's it going? What can I help you with today?"
+        }
+      ],
+      "trace": [],
+      "metrics": {
+        "subrequestsUsed": 1,
+        "llmCalls": 0,
+        "gitCalls": 1,
+        "d1Calls": 0,
         "dirtySetSize": 0,
         "toolsEnabled": 4,
         "skillsEnabled": 0
