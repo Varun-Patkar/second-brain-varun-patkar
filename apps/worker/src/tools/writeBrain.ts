@@ -50,9 +50,18 @@ export function createWriteBrainTool(ctx: TurnContext) {
       required: ["writes"],
     },
     run: async ({ writes }) => {
-      const result = await persistWrites(ctx, writes);
-      ctx.emitTrace({ agent: "brain", tool: "write_brain", detail: `${writes.length} node(s) → committed` });
-      return result;
+      try {
+        const result = await persistWrites(ctx, writes);
+        ctx.emitTrace({ agent: "brain", tool: "write_brain", detail: `${writes.length} node(s) → committed` });
+        return result;
+      } catch (err) {
+        ctx.emitTrace({
+          agent: "brain",
+          tool: "write_brain",
+          detail: `${writes.length} node(s) → error: ${err instanceof Error ? err.message : String(err)}`,
+        });
+        throw err;
+      }
     },
   });
 }

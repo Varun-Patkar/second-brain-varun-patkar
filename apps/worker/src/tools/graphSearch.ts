@@ -35,9 +35,18 @@ export function createGraphSearchTool(ctx: TurnContext) {
       required: ["query"],
     },
     run: async ({ query, k, types }) => {
-      const results = await search(ctx, query, k ?? 5, types as NodeType[] | undefined);
-      ctx.emitTrace({ agent: "brain", tool: "graph_search", detail: `“${query}” → ${results.length} result(s)` });
-      return { results };
+      try {
+        const results = await search(ctx, query, k ?? 5, types as NodeType[] | undefined);
+        ctx.emitTrace({ agent: "brain", tool: "graph_search", detail: `“${query}” → ${results.length} result(s)` });
+        return { results };
+      } catch (err) {
+        ctx.emitTrace({
+          agent: "brain",
+          tool: "graph_search",
+          detail: `“${query}” → error: ${err instanceof Error ? err.message : String(err)}`,
+        });
+        throw err;
+      }
     },
   });
 }

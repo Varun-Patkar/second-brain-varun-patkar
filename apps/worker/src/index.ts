@@ -19,7 +19,7 @@ import { fetchCopilotModels } from "./providers/copilotModels.js";
 import { testProvider } from "./providers/index.js";
 import { createTurnContext } from "./runtime/context.js";
 import { applyConfigChanges, invalidateBrainConfig, loadBrainConfig } from "./storage/config.js";
-import { listChats, loadChat } from "./storage/chats.js";
+import { listChats, loadChat, deleteChat } from "./storage/chats.js";
 import { isTurnRunning } from "./storage/kv.js";
 import { runTurn } from "./turn.js";
 
@@ -31,7 +31,7 @@ function cors(env: Env, origin: string | null): Record<string, string> {
       : env.ALLOWED_ORIGIN;
   return {
     "Access-Control-Allow-Origin": allowed,
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Authorization, Content-Type",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
@@ -167,6 +167,24 @@ export default {
       const record = await loadChat(ctx, id);
       if (!record) return json({ error: "not_found" }, { status: 404 }, corsHeaders);
       return json(record, { status: 200 }, corsHeaders);
+    }
+
+    // --- Chat history: delete a conversation ---
+    if (url.pathname.startsWith("/chats/") && req.method === "DELETE") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      const id = decodeURIComponent(url.pathname.slice("/chats/".length));
+      try {
+        const ctx = createTurnContext(env, () => {});
+        await deleteChat(ctx, id);
+        return json({ ok: true }, { status: 200 }, corsHeaders);
+      } catch (err) {
+        return json(
+          { error: err instanceof Error ? err.message : "delete_failed" },
+          { status: 500 },
+          corsHeaders,
+        );
+      }
     }
 
     // --- Turn status (is a turn still running for this chat?) ---

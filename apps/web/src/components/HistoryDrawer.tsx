@@ -8,25 +8,29 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, MessageSquare, Loader2, Plus } from "lucide-react";
+import { X, MessageSquare, Loader2, Plus, Trash2 } from "lucide-react";
 import type { ChatSummary } from "@second-brain/shared";
-import { listChats } from "../api.js";
+import { deleteChat, listChats } from "../api.js";
 
 export function HistoryDrawer({
   open,
   onClose,
   onSelect,
   onNewChat,
+  onDeleted,
   currentChatId,
 }: {
   open: boolean;
   onClose: () => void;
   onSelect: (id: string) => void;
   onNewChat: () => void;
+  /** Called after a chat is deleted (id of the removed chat). */
+  onDeleted: (id: string) => void;
   currentChatId: string | null;
 }) {
   const [loading, setLoading] = useState(false);
   const [chats, setChats] = useState<ChatSummary[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -35,6 +39,19 @@ export function HistoryDrawer({
       .then((r) => setChats(r.chats))
       .finally(() => setLoading(false));
   }, [open]);
+
+  const onDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await deleteChat(id);
+      setChats((prev) => prev.filter((c) => c.id !== id));
+      onDeleted(id);
+    } catch {
+      /* keep the row; a transient failure can be retried */
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -87,26 +104,46 @@ export function HistoryDrawer({
                 <p className="px-1 py-6 text-center text-xs text-slate-600">No saved chats yet.</p>
               ) : (
                 chats.map((c) => (
-                  <button
+                  <div
                     key={c.id}
-                    onClick={() => {
-                      onSelect(c.id);
-                      onClose();
-                    }}
-                    className={`flex w-full items-start gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition ${
-                      c.id === currentChatId
-                        ? "bg-glow-600/20 text-slate-100"
-                        : "text-slate-300 hover:bg-white/5"
+                    className={`group flex items-center gap-1 rounded-xl pr-1 transition ${
+                      c.id === currentChatId ? "bg-glow-600/20" : "hover:bg-white/5"
                     }`}
                   >
-                    <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
-                    <span className="min-w-0">
-                      <span className="block truncate">{c.title}</span>
-                      <span className="block text-[0.7rem] text-slate-600">
-                        {new Date(c.updatedAt).toLocaleString()}
+                    <button
+                      onClick={() => {
+                        onSelect(c.id);
+                        onClose();
+                      }}
+                      className="flex min-w-0 flex-1 items-start gap-2 px-2.5 py-2 text-left text-sm"
+                    >
+                      <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+                      <span className="min-w-0">
+                        <span
+                          className={`block truncate ${
+                            c.id === currentChatId ? "text-slate-100" : "text-slate-300"
+                          }`}
+                        >
+                          {c.title}
+                        </span>
+                        <span className="block text-[0.7rem] text-slate-600">
+                          {new Date(c.updatedAt).toLocaleString()}
+                        </span>
                       </span>
-                    </span>
-                  </button>
+                    </button>
+                    <button
+                      onClick={() => void onDelete(c.id)}
+                      disabled={deletingId === c.id}
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 opacity-0 transition hover:bg-rose-500/20 hover:text-rose-300 focus:opacity-100 group-hover:opacity-100 disabled:opacity-100"
+                      title="Delete chat"
+                    >
+                      {deletingId === c.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
                 ))
               )}
             </div>

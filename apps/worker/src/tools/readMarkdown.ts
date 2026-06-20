@@ -29,34 +29,43 @@ export function createReadMarkdownTool(ctx: TurnContext) {
       required: ["ids"],
     },
     run: async ({ ids }) => {
-      const documents: NodeDocument[] = [];
-      const misses: string[] = [];
+      try {
+        const documents: NodeDocument[] = [];
+        const misses: string[] = [];
 
-      for (const id of ids) {
-        const cached = await getCachedDoc(ctx, id);
-        if (cached) documents.push(cached);
-        else misses.push(id);
-      }
-
-      if (misses.length > 0) {
-        const nodes = await getNodes(ctx, misses);
-        for (const node of nodes) {
-          const file = await readFile(ctx, node.mdPath);
-          if (!file) continue;
-          const { frontmatter, body } = parseDocument(file.text);
-          const doc: NodeDocument = { id: node.id, mdPath: node.mdPath, body, frontmatter };
-          await putCachedDoc(ctx, doc);
-          documents.push(doc);
+        for (const id of ids) {
+          const cached = await getCachedDoc(ctx, id);
+          if (cached) documents.push(cached);
+          else misses.push(id);
         }
-      }
 
-      if (documents.length > 0) await bumpAccess(ctx, documents.map((d) => d.id), "read");
-      ctx.emitTrace({
-        agent: "brain",
-        tool: "read_markdown",
-        detail: `${ids.length} id(s) → ${documents.length} doc(s)`,
-      });
-      return { documents };
+        if (misses.length > 0) {
+          const nodes = await getNodes(ctx, misses);
+          for (const node of nodes) {
+            const file = await readFile(ctx, node.mdPath);
+            if (!file) continue;
+            const { frontmatter, body } = parseDocument(file.text);
+            const doc: NodeDocument = { id: node.id, mdPath: node.mdPath, body, frontmatter };
+            await putCachedDoc(ctx, doc);
+            documents.push(doc);
+          }
+        }
+
+        if (documents.length > 0) await bumpAccess(ctx, documents.map((d) => d.id), "read");
+        ctx.emitTrace({
+          agent: "brain",
+          tool: "read_markdown",
+          detail: `${ids.length} id(s) → ${documents.length} doc(s)`,
+        });
+        return { documents };
+      } catch (err) {
+        ctx.emitTrace({
+          agent: "brain",
+          tool: "read_markdown",
+          detail: `${ids.length} id(s) → error: ${err instanceof Error ? err.message : String(err)}`,
+        });
+        throw err;
+      }
     },
   });
 }

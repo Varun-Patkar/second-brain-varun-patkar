@@ -64,15 +64,24 @@ export function createWriteConfigTool(ctx: TurnContext) {
       },
     },
     run: async ({ mcpServers, upsertSkills, deleteSkills }) => {
-      const result = await applyConfigChanges(ctx, {
-        ...(mcpServers ? { mcpServers } : {}),
-        ...(upsertSkills ? { upsertSkills } : {}),
-        ...(deleteSkills ? { deleteSkills } : {}),
-      });
-      if (result.changed.length > 0) {
-        ctx.emitTrace({ agent: "brain", tool: "write_config", detail: `${result.changed.length} change(s)` });
+      try {
+        const result = await applyConfigChanges(ctx, {
+          ...(mcpServers ? { mcpServers } : {}),
+          ...(upsertSkills ? { upsertSkills } : {}),
+          ...(deleteSkills ? { deleteSkills } : {}),
+        });
+        if (result.changed.length > 0) {
+          ctx.emitTrace({ agent: "brain", tool: "write_config", detail: `${result.changed.length} change(s)` });
+        }
+        return result;
+      } catch (err) {
+        ctx.emitTrace({
+          agent: "brain",
+          tool: "write_config",
+          detail: `error: ${err instanceof Error ? err.message : String(err)}`,
+        });
+        throw err;
       }
-      return result;
     },
   });
 }

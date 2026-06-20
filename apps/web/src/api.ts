@@ -179,6 +179,18 @@ export async function getChat(id: string): Promise<ChatRecord | null> {
   return (await res.json()) as ChatRecord;
 }
 
+/** Delete a stored conversation by id. */
+export async function deleteChat(id: string): Promise<void> {
+  const res = await fetch(`${WORKER_URL}/chats/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok && res.status !== 404) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `Failed to delete chat: HTTP ${res.status}`);
+  }
+}
+
 /** Whether a turn is still running server-side for the given chat. */
 export async function getTurnStatus(chatId: string): Promise<boolean> {
   try {

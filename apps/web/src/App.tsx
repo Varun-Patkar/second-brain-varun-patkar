@@ -205,6 +205,9 @@ export function App() {
         onClose={() => setHistoryOpen(false)}
         onSelect={(id) => void chat.openChat(id)}
         onNewChat={chat.newChat}
+        onDeleted={(id) => {
+          if (id === chat.chatId) chat.newChat();
+        }}
         currentChatId={chat.chatId}
       />
     </div>

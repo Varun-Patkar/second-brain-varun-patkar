@@ -89,3 +89,17 @@ export async function saveTurn(
     ],
   });
 }
+
+/**
+ * Delete a chat: remove its file and drop it from the index in one commit. The
+ * file remains recoverable from git history (no separate trash copy is kept).
+ */
+export async function deleteChat(ctx: TurnContext, id: string): Promise<void> {
+  const index = await listChats(ctx);
+  const nextIndex = index.filter((c) => c.id !== id);
+  await commitBatch(ctx, {
+    message: `chats: delete ${id}`,
+    writes: [{ path: INDEX_PATH, content: `${JSON.stringify(nextIndex, null, 2)}\n` }],
+    deletes: [chatPath(id)],
+  });
+}
