@@ -168,10 +168,21 @@ export async function saveConfig(update: BrainConfigUpdate): Promise<BrainConfig
  */
 export async function transcribeAudio(sttUrl: string, audio: Blob): Promise<string> {
   const base = sttUrl.replace(/\/$/, "");
+  // MediaRecorder tags blobs like "audio/webm;codecs=opus", but the server's
+  // content-type allow-list matches the bare type ("audio/webm"). Strip the
+  // codecs suffix and re-wrap as a File so the multipart part carries the clean
+  // type the server accepts.
+  const cleanType = (audio.type.split(";")[0] || "audio/webm").trim();
+  const ext = cleanType.includes("ogg")
+    ? "ogg"
+    : cleanType.includes("wav")
+      ? "wav"
+      : cleanType.includes("mpeg") || cleanType.includes("mp3")
+        ? "mp3"
+        : "webm";
+  const file = new File([audio], `speech.${ext}`, { type: cleanType });
   const form = new FormData();
-  // The server accepts webm/ogg/wav/mp3/mpeg; name + type help it pick a decoder.
-  const ext = audio.type.includes("ogg") ? "ogg" : audio.type.includes("wav") ? "wav" : "webm";
-  form.append("file", audio, `speech.${ext}`);
+  form.append("file", file);
   let res: Response;
   try {
     res = await fetch(`${base}/stt`, { method: "POST", body: form });
@@ -181,7 +192,13 @@ export async function transcribeAudio(sttUrl: string, audio: Blob): Promise<stri
   if (res.status === 502 || res.status === 503 || res.status === 504) {
     throw new Error("The speech-to-text tunnel is up but the local server didn't respond.");
   }
-  if (!res.ok) throw new Error(`Speech-to-text failed (HTTP ${res.status}).`);
+  if (!res.ok) {
+    const detail = await res
+      .json()
+      .then((d) => (d as { detail?: string }).detail)
+      .catch(() => undefined);
+    throw new Error(detail ? `Speech-to-text: ${detail}` : `Speech-to-text failed (HTTP ${res.status}).`);
+  }
   const data = (await res.json().catch(() => ({}))) as { text?: string };
   return (data.text ?? "").trim();
 }
