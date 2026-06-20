@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, Brain } from "lucide-react";
 import type { SessionInfo } from "@second-brain/shared";
-import { clearToken, completeLogin, getModels, getSession } from "./api.js";
+import { clearToken, completeLogin, getBrainInfo, getModels, getSession } from "./api.js";
 import { DEFAULT_PROVIDER_CONFIG, configSupportsVision, type ProviderConfig } from "./types.js";
 import { useChat } from "./hooks/useChat.js";
 import { useLocalStorage } from "./hooks/useLocalStorage.js";
@@ -23,6 +23,7 @@ import { Composer } from "./components/Composer.js";
 import { MobileSettings } from "./components/MobileSettings.js";
 import { ConfigManager } from "./components/ConfigManager.js";
 import { HistoryDrawer } from "./components/HistoryDrawer.js";
+import { BrainViewer } from "./components/BrainViewer.js";
 
 type AuthState = "loading" | "anon" | "authed";
 
@@ -38,6 +39,10 @@ export function App() {
   const [configOpen, setConfigOpen] = useState(false);
   // Controls the chat-history drawer.
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Which top-level view is shown: the chat, or the brain viewer.
+  const [view, setView] = useState<"chat" | "brain">("chat");
+  // GitHub repo URL (for the external link button).
+  const [repoUrl, setRepoUrl] = useState<string | undefined>(undefined);
   const chat = useChat();
   const { conn, test } = useProviderConnection(cfg, auth === "authed");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -86,6 +91,11 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth]);
 
+  // Load repo info for the GitHub link + brain viewer.
+  useEffect(() => {
+    if (auth === "authed") void getBrainInfo().then((i) => i && setRepoUrl(i.repoUrl));
+  }, [auth]);
+
   const signOut = () => {
     clearToken();
     setSession(null);
@@ -102,6 +112,8 @@ export function App() {
 
   if (auth === "anon" || !session) return <Login />;
 
+  if (view === "brain") return <BrainViewer onBack={() => setView("chat")} />;
+
   return (
     <div className="mx-auto flex h-full w-[90vw] flex-col gap-3 p-3 md:p-4">
       <TopBar
@@ -110,6 +122,8 @@ export function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenHistory={() => setHistoryOpen(true)}
         onNewChat={chat.newChat}
+        onOpenBrain={() => setView("brain")}
+        {...(repoUrl ? { repoUrl } : {})}
       />
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[1fr_360px]">

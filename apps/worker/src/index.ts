@@ -20,6 +20,7 @@ import { testProvider } from "./providers/index.js";
 import { createTurnContext } from "./runtime/context.js";
 import { applyConfigChanges, invalidateBrainConfig, loadBrainConfig } from "./storage/config.js";
 import { listChats, loadChat, loadChatAsset, deleteChat } from "./storage/chats.js";
+import { getBrainTree, readFile } from "./storage/github.js";
 import { isTurnRunning } from "./storage/kv.js";
 import { runTurn } from "./turn.js";
 
@@ -91,6 +92,42 @@ export default {
       const session = await authed(env, req);
       if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
       return json(session, { status: 200 }, corsHeaders);
+    }
+
+    // --- Brain viewer: repo info ---
+    if (url.pathname === "/brain/info" && req.method === "GET") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      return json(
+        { repoUrl: `https://github.com/${env.GH_REPO}`, branch: env.BRAIN_BRANCH },
+        { status: 200 },
+        corsHeaders,
+      );
+    }
+
+    // --- Brain viewer: file tree on the brain branch ---
+    if (url.pathname === "/brain/tree" && req.method === "GET") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      try {
+        const ctx = createTurnContext(env, () => {});
+        const files = await getBrainTree(ctx);
+        return json({ files }, { status: 200 }, corsHeaders);
+      } catch (err) {
+        return json({ error: err instanceof Error ? err.message : "tree_failed" }, { status: 500 }, corsHeaders);
+      }
+    }
+
+    // --- Brain viewer: a single file's content ---
+    if (url.pathname === "/brain/file" && req.method === "GET") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      const path = url.searchParams.get("path") ?? "";
+      if (!path || path.includes("..")) return json({ error: "invalid_path" }, { status: 400 }, corsHeaders);
+      const ctx = createTurnContext(env, () => {});
+      const file = await readFile(ctx, path);
+      if (!file) return json({ error: "not_found" }, { status: 404 }, corsHeaders);
+      return json({ content: file.text }, { status: 200 }, corsHeaders);
     }
 
     // --- Available Copilot models (dynamic list) ---

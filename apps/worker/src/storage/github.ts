@@ -107,6 +107,24 @@ export async function createBlob(ctx: TurnContext, base64: string): Promise<stri
 }
 
 /**
+ * List every file (blob) path on the brain branch, recursively. Resolves the
+ * branch head → commit → tree, then reads the tree with `recursive=1`.
+ */
+export async function getBrainTree(ctx: TurnContext): Promise<string[]> {
+  const { GH_REPO, BRAIN_BRANCH } = ctx.env;
+  const refRes = await gh(ctx, `/repos/${GH_REPO}/git/ref/heads/${encodeURIComponent(BRAIN_BRANCH)}`);
+  if (!refRes.ok) throw new Error(`Cannot read brain ref: ${refRes.status}`);
+  const ref = (await refRes.json()) as { object: { sha: string } };
+  const commitRes = await gh(ctx, `/repos/${GH_REPO}/git/commits/${ref.object.sha}`);
+  if (!commitRes.ok) throw new Error(`Cannot read brain commit: ${commitRes.status}`);
+  const commit = (await commitRes.json()) as { tree: { sha: string } };
+  const treeRes = await gh(ctx, `/repos/${GH_REPO}/git/trees/${commit.tree.sha}?recursive=1`);
+  if (!treeRes.ok) throw new Error(`Cannot read brain tree: ${treeRes.status}`);
+  const tree = (await treeRes.json()) as { tree: Array<{ path: string; type: string }> };
+  return (tree.tree ?? []).filter((e) => e.type === "blob").map((e) => e.path);
+}
+
+/**
  * Commit a batch of writes and/or deletes as one commit on the brain branch.
  * Deletes here mean "remove from this path" — callers implement trash by deleting
  * the old path and writing the same content under `_deleted/`.

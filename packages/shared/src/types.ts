@@ -352,3 +352,25 @@ export interface ChatListResponse {
 export interface TurnStatusResponse {
   running: boolean;
 }
+
+/* ------------------------------------------------------------------ */
+/* Brain viewer (read-only browsing of the brain branch in-app)        */
+/* ------------------------------------------------------------------ */
+
+/** Repository info for the brain viewer + GitHub link (`GET /brain/info`). */
+export interface BrainInfo {
+  /** Repo web URL, e.g. https://github.com/owner/repo. */
+  repoUrl: string;
+  /** The brain branch name. */
+  branch: string;
+}
+
+/** Flat list of file paths on the brain branch (`GET /brain/tree`). */
+export interface BrainTreeResponse {
+  files: string[];
+}
+
+/** Raw text content of a single brain file (`GET /brain/file?path=…`). */
+export interface BrainFileResponse {
+  content: string;
+}

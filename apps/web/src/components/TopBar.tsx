@@ -1,7 +1,7 @@
 /** Top bar: branding, session avatar, sign-out. */
 
 import { motion } from "framer-motion";
-import { Brain, LogOut, SlidersHorizontal, History, SquarePen } from "lucide-react";
+import { Brain, LogOut, SlidersHorizontal, History, SquarePen, Github, FolderTree } from "lucide-react";
 import type { SessionInfo } from "@second-brain/shared";
 
 export function TopBar({
@@ -10,6 +10,8 @@ export function TopBar({
   onOpenSettings,
   onOpenHistory,
   onNewChat,
+  onOpenBrain,
+  repoUrl,
 }: {
   session: SessionInfo;
   onSignOut: () => void;
@@ -19,6 +21,10 @@ export function TopBar({
   onOpenHistory?: () => void;
   /** Start a new, empty conversation. */
   onNewChat?: () => void;
+  /** Open the in-app brain viewer. */
+  onOpenBrain?: () => void;
+  /** GitHub repo URL (for the external link button). */
+  repoUrl?: string;
 }) {
   return (
     <header className="glass sticky top-0 z-20 flex items-center justify-between rounded-2xl px-4 py-2.5">
@@ -53,6 +59,26 @@ export function TopBar({
           >
             <SquarePen className="h-4.5 w-4.5" />
           </button>
+        )}
+        {onOpenBrain && (
+          <button
+            onClick={onOpenBrain}
+            className="grid h-9 w-9 place-items-center rounded-xl bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
+            title="Brain viewer"
+          >
+            <FolderTree className="h-4.5 w-4.5" />
+          </button>
+        )}
+        {repoUrl && (
+          <a
+            href={repoUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="grid h-9 w-9 place-items-center rounded-xl bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
+            title="Open the GitHub repo"
+          >
+            <Github className="h-4.5 w-4.5" />
+          </a>
         )}
         <div className="flex items-center gap-2 rounded-full bg-white/5 py-1 pl-1 pr-3">
           <img src={session.avatarUrl} alt={session.login} className="h-7 w-7 rounded-full" />

@@ -9,6 +9,9 @@ import type {
   BrainConfigDto,
   BrainConfigUpdate,
   BrainConfigUpdateResult,
+  BrainFileResponse,
+  BrainInfo,
+  BrainTreeResponse,
   ChatListResponse,
   ChatRecord,
   ChatTurnRequest,
@@ -215,6 +218,33 @@ export async function getChatAsset(path: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/** Repo info for the brain viewer + GitHub link. */
+export async function getBrainInfo(): Promise<BrainInfo | null> {
+  try {
+    const res = await fetch(`${WORKER_URL}/brain/info`, { headers: authHeaders() });
+    if (!res.ok) return null;
+    return (await res.json()) as BrainInfo;
+  } catch {
+    return null;
+  }
+}
+
+/** List all file paths on the brain branch. */
+export async function getBrainTree(): Promise<string[]> {
+  const res = await fetch(`${WORKER_URL}/brain/tree`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(`Failed to load brain tree: HTTP ${res.status}`);
+  return ((await res.json()) as BrainTreeResponse).files;
+}
+
+/** Load a single brain file's text content (on demand). */
+export async function getBrainFile(path: string): Promise<string> {
+  const res = await fetch(`${WORKER_URL}/brain/file?path=${encodeURIComponent(path)}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error(`Failed to load file: HTTP ${res.status}`);
+  return ((await res.json()) as BrainFileResponse).content;
 }
 
 /**
