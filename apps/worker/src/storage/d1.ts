@@ -118,6 +118,20 @@ export async function search(
   }));
 }
 
+/** List all nodes (id, type, title, path) — a lightweight index for the viewer. */
+export async function listAllNodes(
+  ctx: TurnContext,
+): Promise<Array<{ id: string; type: string; title: string; mdPath: string }>> {
+  ctx.budget.d1();
+  const res = await ctx.env.DB.prepare("SELECT id, type, title, md_path FROM nodes WHERE archived = 0").all<{
+    id: string;
+    type: string;
+    title: string;
+    md_path: string;
+  }>();
+  return (res.results ?? []).map((r) => ({ id: r.id, type: r.type, title: r.title, mdPath: r.md_path }));
+}
+
 /** Load full node rows by id. */
 export async function getNodes(ctx: TurnContext, ids: string[]): Promise<BrainNode[]> {
   if (ids.length === 0) return [];

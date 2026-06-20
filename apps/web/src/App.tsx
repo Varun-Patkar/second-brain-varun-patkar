@@ -39,8 +39,11 @@ export function App() {
   const [configOpen, setConfigOpen] = useState(false);
   // Controls the chat-history drawer.
   const [historyOpen, setHistoryOpen] = useState(false);
-  // Which top-level view is shown: the chat, or the brain viewer.
-  const [view, setView] = useState<"chat" | "brain">("chat");
+  // Which top-level view is shown: the chat, or the brain viewer. Driven by the
+  // URL hash (#brain) so the viewer is directly reachable and bookmarkable.
+  const [view, setView] = useState<"chat" | "brain">(() =>
+    window.location.hash.replace(/^#\/?/, "") === "brain" ? "brain" : "chat",
+  );
   // GitHub repo URL (for the external link button).
   const [repoUrl, setRepoUrl] = useState<string | undefined>(undefined);
   const chat = useChat();
@@ -96,6 +99,23 @@ export function App() {
     if (auth === "authed") void getBrainInfo().then((i) => i && setRepoUrl(i.repoUrl));
   }, [auth]);
 
+  // Keep the view in sync with the URL hash (browser back/forward, direct links).
+  useEffect(() => {
+    const onHash = (): void =>
+      setView(window.location.hash.replace(/^#\/?/, "") === "brain" ? "brain" : "chat");
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  const openBrain = (): void => {
+    window.location.hash = "#brain";
+    setView("brain");
+  };
+  const backToChat = (): void => {
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+    setView("chat");
+  };
+
   const signOut = () => {
     clearToken();
     setSession(null);
@@ -112,7 +132,7 @@ export function App() {
 
   if (auth === "anon" || !session) return <Login />;
 
-  if (view === "brain") return <BrainViewer onBack={() => setView("chat")} />;
+  if (view === "brain") return <BrainViewer onBack={backToChat} />;
 
   return (
     <div className="mx-auto flex h-full w-[90vw] flex-col gap-3 p-3 md:p-4">
@@ -122,7 +142,7 @@ export function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenHistory={() => setHistoryOpen(true)}
         onNewChat={chat.newChat}
-        onOpenBrain={() => setView("brain")}
+        onOpenBrain={openBrain}
         {...(repoUrl ? { repoUrl } : {})}
       />
 

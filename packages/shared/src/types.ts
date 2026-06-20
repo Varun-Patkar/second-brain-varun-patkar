@@ -374,3 +374,16 @@ export interface BrainTreeResponse {
 export interface BrainFileResponse {
   content: string;
 }
+
+/** A node index entry used to resolve edge targets to titles + paths. */
+export interface BrainNodeRef {
+  id: string;
+  title: string;
+  type: string;
+  mdPath: string;
+}
+
+/** Node index for the viewer (`GET /brain/nodes`). */
+export interface BrainNodesResponse {
+  nodes: BrainNodeRef[];
+}

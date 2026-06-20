@@ -11,6 +11,7 @@ import type {
   BrainConfigUpdateResult,
   BrainFileResponse,
   BrainInfo,
+  BrainNodesResponse,
   BrainTreeResponse,
   ChatListResponse,
   ChatRecord,
@@ -245,6 +246,17 @@ export async function getBrainFile(path: string): Promise<string> {
   });
   if (!res.ok) throw new Error(`Failed to load file: HTTP ${res.status}`);
   return ((await res.json()) as BrainFileResponse).content;
+}
+
+/** Load the node index (id -> title/path) for resolving edge links. */
+export async function getBrainNodes(): Promise<BrainNodesResponse["nodes"]> {
+  try {
+    const res = await fetch(`${WORKER_URL}/brain/nodes`, { headers: authHeaders() });
+    if (!res.ok) return [];
+    return ((await res.json()) as BrainNodesResponse).nodes;
+  } catch {
+    return [];
+  }
 }
 
 /**
