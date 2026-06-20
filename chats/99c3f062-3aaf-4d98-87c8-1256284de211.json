@@ -1,0 +1,26 @@
+{
+  "id": "99c3f062-3aaf-4d98-87c8-1256284de211",
+  "title": "Hi, my name is Varun Patkar. What about you?",
+  "createdAt": "2026-06-20T08:20:55.762Z",
+  "updatedAt": "2026-06-20T08:20:55.762Z",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hi, my name is Varun Patkar. What about you?"
+    },
+    {
+      "role": "assistant",
+      "content": "Hi Varun! I'm your personal AI assistant — think of me as the curator of your second brain. I help you store, organize, and retrieve knowledge so nothing important slips through the cracks.\n\nLet me save your name to your knowledge base!I'm having a little trouble connecting to your knowledge base at the moment — I'll keep trying! But in the meantime, nice to meet you, **Varun Patkar**! 😊\n\nI'm your AI-powered second brain assistant. Here's what I can do for you:\n\n- 📝 **Remember** important facts, ideas, projects, and decisions\n- 🔍 **Retrieve** anything you've stored, on demand\n- 🔗 **Connect** related concepts, people, and projects into a navigable knowledge graph\n\nWhat would you like to talk about or store today?",
+      "trace": [],
+      "metrics": {
+        "subrequestsUsed": 1,
+        "llmCalls": 0,
+        "gitCalls": 1,
+        "d1Calls": 0,
+        "dirtySetSize": 0,
+        "toolsEnabled": 4,
+        "skillsEnabled": 0
+      }
+    }
+  ]
+}
