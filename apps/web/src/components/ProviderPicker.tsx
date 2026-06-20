@@ -1,7 +1,7 @@
 /** Provider + model picker (GitHub Copilot / LM Studio). */
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Cpu, Server } from "lucide-react";
+import { Cpu, Server, Mic } from "lucide-react";
 import type { ProviderConfig } from "../types.js";
 
 /** Static fallback list, used only if the dynamic /models fetch returns nothing. */
@@ -111,6 +111,21 @@ export function ProviderPicker({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Speech-to-text (provider-independent voice input). */}
+      <div className="mt-3 border-t border-white/5 pt-3">
+        <Field label="Speech-to-text URL">
+          <div className="flex items-center gap-2">
+            <Mic className="h-4 w-4 shrink-0 text-slate-500" />
+            <input
+              value={cfg.sttUrl}
+              onChange={(e) => set({ sttUrl: e.target.value })}
+              placeholder="https://xxxx.devtunnels.ms"
+              className="input"
+            />
+          </div>
+        </Field>
+      </div>
     </div>
   );
 }

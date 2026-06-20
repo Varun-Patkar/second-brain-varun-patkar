@@ -13,6 +13,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply second_brain --remote"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@second-brain/shared": "*",
     "agent-framework-js": "^1.0.0"
   },

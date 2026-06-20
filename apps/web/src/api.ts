@@ -109,3 +109,35 @@ export async function* streamChat(
     }
   }
 }
+
+/**
+ * Transcribe a recorded audio blob via the Whisper STT server's `POST /stt`
+ * endpoint (multipart/form-data, field `file`). Returns the transcript text.
+ *
+ * @param sttUrl - Base URL of the STT server (e.g. a devtunnel). Trailing slash optional.
+ * @param audio - The recorded audio blob (webm/ogg/wav…).
+ * @throws if the server is unreachable or returns a non-OK status.
+ */
+export async function transcribeAudio(sttUrl: string, audio: Blob): Promise<string> {
+  const base = sttUrl.replace(/\/$/, "");
+  const form = new FormData();
+  // The server accepts webm/ogg/wav/mp3/mpeg; name + type help it pick a decoder.
+  const ext = audio.type.includes("ogg") ? "ogg" : audio.type.includes("wav") ? "wav" : "webm";
+  form.append("file", audio, `speech.${ext}`);
+  const res = await fetch(`${base}/stt`, { method: "POST", body: form });
+  if (!res.ok) throw new Error(`STT failed: ${res.status}`);
+  const data = (await res.json()) as { text?: string };
+  return (data.text ?? "").trim();
+}
+
+/**
+ * Read an image File into the wire shape expected by the chat request: raw
+ * base64 (no `data:` prefix) plus its MIME type.
+ */
+export async function fileToChatImage(file: File): Promise<{ data: string; mimeType: string }> {
+  const buf = await file.arrayBuffer();
+  let binary = "";
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+  return { data: btoa(binary), mimeType: file.type || "image/png" };
+}

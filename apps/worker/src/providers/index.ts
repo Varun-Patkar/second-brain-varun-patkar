@@ -27,7 +27,10 @@ function copilotModelCaps(id: string): ModelCapabilities {
 }
 
 /** Resolve the provider + model id for a chat turn. */
-export function buildProvider(env: Env, req: ChatTurnRequest): { provider: Provider; model: string } {
+export function buildProvider(
+  env: Env,
+  req: ChatTurnRequest,
+): { provider: Provider; model: string; supportsVision: boolean } {
   if (req.provider === "lmstudio") {
     const cfg = req.lmStudio;
     if (!cfg?.baseUrl || !cfg.model) {
@@ -38,17 +41,19 @@ export function buildProvider(env: Env, req: ChatTurnRequest): { provider: Provi
       getCredential: () => cfg.key ?? "",
       capabilities: { model: cfg.model, maxInputTokens: 262144, maxOutputTokens: 32000 },
     });
-    return { provider, model: cfg.model };
+    // LM Studio model capabilities are caller-supplied and unknown here; assume no vision.
+    return { provider, model: cfg.model, supportsVision: false };
   }
 
   // Default: GitHub Copilot. Build a single-model provider from the requested
   // model so the UI can pick any model Copilot offers (see the /models endpoint)
   // without a fixed allow-list to keep in sync.
   const model = req.model || env.COPILOT_DEFAULT_MODEL || "claude-sonnet-4.6";
+  const caps = copilotModelCaps(model);
   const provider = createCopilotProvider({
     getCredential: () => env.COPILOT_TOKEN,
-    models: [copilotModelCaps(model)],
+    models: [caps],
     defaultModel: model,
   });
-  return { provider, model };
+  return { provider, model, supportsVision: caps.supportsVision === true };
 }

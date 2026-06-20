@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useRef, useState } from "react";
-import type { ChatTurnRequest, TraceEvent, TurnMetrics } from "@second-brain/shared";
+import type { ChatImage, ChatTurnRequest, TraceEvent, TurnMetrics } from "@second-brain/shared";
 import { streamChat } from "../api.js";
 import type { ChatMessage, ProviderConfig } from "../types.js";
 
@@ -14,7 +14,8 @@ let idCounter = 0;
 const nextId = (): string => `m${Date.now()}_${idCounter++}`;
 
 /** Build the wire request from the UI provider config. */
-function buildRequest(message: string, cfg: ProviderConfig): ChatTurnRequest {
+function buildRequest(message: string, cfg: ProviderConfig, images?: ChatImage[]): ChatTurnRequest {
+  const imagePart = images && images.length > 0 ? { images } : {};
   if (cfg.provider === "lmstudio") {
     return {
       message,
@@ -24,9 +25,10 @@ function buildRequest(message: string, cfg: ProviderConfig): ChatTurnRequest {
         model: cfg.lmStudioModel,
         ...(cfg.lmStudioKey ? { key: cfg.lmStudioKey } : {}),
       },
+      ...imagePart,
     };
   }
-  return { message, provider: "copilot", model: cfg.copilotModel };
+  return { message, provider: "copilot", model: cfg.copilotModel, ...imagePart };
 }
 
 export function useChat() {
@@ -37,8 +39,8 @@ export function useChat() {
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const send = useCallback(async (text: string, cfg: ProviderConfig) => {
-    if (!text.trim() || streaming) return;
+  const send = useCallback(async (text: string, cfg: ProviderConfig, images?: ChatImage[]) => {
+    if ((!text.trim() && !(images && images.length > 0)) || streaming) return;
     setError(null);
     setTrace([]);
     setMetrics(null);
@@ -55,7 +57,7 @@ export function useChat() {
     abortRef.current = ac;
 
     try {
-      for await (const ev of streamChat(buildRequest(text, cfg), ac.signal)) {
+      for await (const ev of streamChat(buildRequest(text, cfg, images), ac.signal)) {
         switch (ev.type) {
           case "text":
             patchAssistant((m) => ({ ...m, content: m.content + ev.text }));
@@ -89,5 +91,5 @@ export function useChat() {
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
-  return { messages, send, stop, streaming, trace, metrics, error };
+  return { messages, send, stop, streaming, trace, metrics, error, setError };
 }

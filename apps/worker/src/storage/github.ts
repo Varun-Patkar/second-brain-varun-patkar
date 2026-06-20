@@ -58,6 +58,22 @@ export async function readFile(
 }
 
 /**
+ * List the files in a directory on the brain branch. Returns an empty array when
+ * the directory does not exist. Each entry is a file path relative to the repo.
+ */
+export async function listDir(ctx: TurnContext, dirPath: string): Promise<string[]> {
+  const { GH_REPO, BRAIN_BRANCH } = ctx.env;
+  const res = await gh(
+    ctx,
+    `/repos/${GH_REPO}/contents/${encodeURI(dirPath)}?ref=${encodeURIComponent(BRAIN_BRANCH)}`,
+  );
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error(`GitHub list ${dirPath} failed: ${res.status}`);
+  const json = (await res.json()) as Array<{ path: string; type: string }>;
+  return json.filter((e) => e.type === "file").map((e) => e.path);
+}
+
+/**
  * Commit a batch of writes and/or deletes as one commit on the brain branch.
  * Deletes here mean "remove from this path" — callers implement trash by deleting
  * the old path and writing the same content under `_deleted/`.

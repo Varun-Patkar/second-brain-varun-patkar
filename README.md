@@ -20,6 +20,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design and rationale.
 packages/shared   # domain types + wire contracts (used by worker and web)
 apps/worker       # Cloudflare Worker: agents, tools, storage adapters, auth
 apps/web          # React + Vite + Tailwind chat frontend (GitHub Pages)
+scripts           # helpers (e.g. tunnels.ps1 — dev tunnels for LM Studio / STT)
 .github/workflows # CI, Pages deploy, monthly maintenance
 ```
 
@@ -110,6 +111,28 @@ npm run build         # all workspaces
 npm run dev:worker    # wrangler dev
 npm run dev:web       # vite dev
 ```
+
+## Local LLM, voice input & tunnels
+
+The app can use a **local LM Studio** model and **local Whisper speech-to-text**, reached over
+Microsoft **dev tunnels**. A helper forwards the selected port(s) and prints the public URLs. By
+default it exposes **only** the STT/Whisper port; use `-Service` for LM Studio or both:
+
+```powershell
+./scripts/tunnels.ps1                  # STT/Whisper only (default, port 9000)
+./scripts/tunnels.ps1 -Service both    # LM Studio (1234) + STT/Whisper (9000)
+./scripts/tunnels.ps1 -Service lmstudio
+```
+
+The tunnel stays live and prints the URLs; press **`q`** (or Ctrl+C) to stop hosting and close it.
+Paste the printed URLs once into the app's settings (sidebar on desktop, the settings sheet on
+mobile): the LM Studio URL (append `/v1`) and the **Speech-to-text URL**. Both persist in
+`localStorage`, so it is a one-time setup. With an STT URL set, a mic button appears in the composer
+(record → transcribe → insert). For vision-capable models, you can paste or attach images.
+
+The STT server is the local **faster-whisper** server exposing `POST /stt` (multipart `file`) →
+`{ text }`. MCP servers and skills can be configured by the agent itself and live on the `brain`
+branch (`mcp.json` + `skills/*.md`); only **remote** (HTTPS) MCP servers are supported on the Worker.
 
 ## License
 

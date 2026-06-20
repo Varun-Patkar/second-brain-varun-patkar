@@ -10,22 +10,27 @@ import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, Brain } from "lucide-react";
 import type { SessionInfo } from "@second-brain/shared";
 import { clearToken, completeLogin, getModels, getSession } from "./api.js";
-import { DEFAULT_PROVIDER_CONFIG, type ProviderConfig } from "./types.js";
+import { DEFAULT_PROVIDER_CONFIG, configSupportsVision, type ProviderConfig } from "./types.js";
 import { useChat } from "./hooks/useChat.js";
+import { useLocalStorage } from "./hooks/useLocalStorage.js";
 import { Login } from "./components/Login.js";
 import { TopBar } from "./components/TopBar.js";
 import { ProviderPicker } from "./components/ProviderPicker.js";
 import { Message } from "./components/Message.js";
 import { Trace } from "./components/Trace.js";
 import { Composer } from "./components/Composer.js";
+import { MobileSettings } from "./components/MobileSettings.js";
 
 type AuthState = "loading" | "anon" | "authed";
 
 export function App() {
   const [auth, setAuth] = useState<AuthState>("loading");
   const [session, setSession] = useState<SessionInfo | null>(null);
-  const [cfg, setCfg] = useState<ProviderConfig>(DEFAULT_PROVIDER_CONFIG);
+  // Persisted across reloads (provider, devtunnel URLs, model choices).
+  const [cfg, setCfg] = useLocalStorage<ProviderConfig>("sb.providerConfig", DEFAULT_PROVIDER_CONFIG);
   const [models, setModels] = useState<string[]>([]);
+  // Controls the mobile bottom-sheet (provider picker + agent activity).
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const chat = useChat();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -84,10 +89,10 @@ export function App() {
   if (auth === "anon" || !session) return <Login />;
 
   return (
-    <div className="mx-auto flex h-full max-w-6xl flex-col gap-3 p-3 md:p-4">
-      <TopBar session={session} onSignOut={signOut} />
+    <div className="mx-auto flex h-full w-[90vw] flex-col gap-3 p-3 md:p-4">
+      <TopBar session={session} onSignOut={signOut} onOpenSettings={() => setSettingsOpen(true)} />
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[1fr_320px]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[1fr_360px]">
         {/* Chat column */}
         <div className="flex min-h-0 flex-col gap-3">
           <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-auto scroll-thin px-1 py-2">
@@ -118,12 +123,15 @@ export function App() {
           <Composer
             disabled={chat.streaming}
             streaming={chat.streaming}
-            onSend={(text) => chat.send(text, cfg)}
+            sttUrl={cfg.sttUrl}
+            visionEnabled={configSupportsVision(cfg)}
+            onSend={(text, images) => chat.send(text, cfg, images)}
             onStop={chat.stop}
+            onError={chat.setError}
           />
         </div>
 
-        {/* Sidebar */}
+        {/* Sidebar (desktop only). */}
         <aside className="hidden min-h-0 flex-col gap-3 lg:flex">
           <ProviderPicker cfg={cfg} onChange={setCfg} models={models} />
           <div className="min-h-0 flex-1">
@@ -131,6 +139,17 @@ export function App() {
           </div>
         </aside>
       </div>
+
+      {/* Mobile-only bottom sheet mirroring the desktop sidebar. */}
+      <MobileSettings
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        cfg={cfg}
+        onChange={setCfg}
+        models={models}
+        trace={chat.trace}
+        metrics={chat.metrics}
+      />
     </div>
   );
 }

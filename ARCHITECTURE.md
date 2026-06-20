@@ -95,14 +95,22 @@ flowchart TB
 A static single-page app (no server code), served free from GitHub Pages.
 
 - **Chat interface** — message history, streaming responses (SSE), per-turn agent trace (which
-  agent did what), and markdown rendering of brain content.
+  agent did what), and markdown rendering of brain content. On desktop the content spans ~90vw with
+  a provider/trace sidebar; on mobile those panels collapse into a slide-up **settings bottom sheet**.
 - **LLM picker** — choose the provider/model per session:
   - **GitHub Copilot** (default) — the backend already holds the token; the UI just selects a model.
   - **LM Studio** — the user supplies a **devtunnel URL** and an **optional key**; the backend uses
     these to reach the local LM Studio OpenAI-compatible endpoint.
+- **Voice input (STT)** — an optional **Whisper STT** server (reached over a devtunnel) transcribes
+  mic audio (`POST /stt`); the composer mic button records → transcribes → inserts text.
+- **Vision** — for vision-capable models the composer accepts pasted/attached images, sent as base64
+  image parts; the worker drops them when the chosen model lacks vision support.
+- **Persisted settings** — provider choice, model, LM Studio URL/key, and STT URL persist in
+  `localStorage` (one-time setup). No secrets are persisted server-side.
 - **GitHub login** — OAuth redirect flow (see §6). The client never holds the OAuth client secret;
   it receives a short session token from the Worker after login.
-- **Talks only to the Worker** over HTTPS; CORS is restricted to the Pages origin.
+- **Talks only to the Worker** over HTTPS (except direct STT calls to the user's own devtunnel);
+  CORS is restricted to the Pages origin.
 
 > The frontend holds **no** persistent secrets. The LM Studio key, if provided, is sent per request
 > over TLS and never persisted server-side.
@@ -132,7 +140,7 @@ tools the brain agent calls.
 
 | Agent | Role | Tools it can call |
 | --- | --- | --- |
-| **Brain agent** (single loop) | Plans how to answer / apply knowledge, retrieves grounded context, and writes/updates the wiki — all in one bounded `maxIterations` loop. Produces the final answer. | `graph_search`, `read_markdown`, `write_brain` (batched), `upsert_graph`, `bump_access`. |
+| **Brain agent** (single loop) | Plans how to answer / apply knowledge, retrieves grounded context, and writes/updates the wiki — all in one bounded `maxIterations` loop. Produces the final answer. | `graph_search`, `read_markdown`, `write_brain` (batched), `write_config` (edit MCP/skills), `upsert_graph`, `bump_access`, **+ any tools from configured remote MCP servers**. |
 | **Consolidator** (only on dirty turns) | Runs **only if the turn wrote something**, and only over the *touched subgraph* (`dirtySet` + 1-hop neighbors). Does cheap deterministic fixes with **no LLM** (dangling-edge repair, frontmatter normalization, exact-duplicate detection by content hash). Uses **one** LLM call — over node *summaries*, not bodies — to propose semantic merges, emitted as a **structured plan** that a deterministic validator checks before applying. | `consolidate` (dry-run → validate → apply), graph + markdown tools, `trash_node`. |
 | **Archival agent** (monthly, out-of-band) | In **GitHub Actions**, scans for low-`ref_count` / stale `last_accessed` nodes, moves their markdown to `archive/`, flags `archived = 1`, prunes dead edges, runs reconcile, and writes the D1 snapshot. | Full graph + git access. |
 
@@ -165,9 +173,25 @@ graph ops are **idempotent**.
 | `consolidate` | `{ dirtySet:[id] }` | `{ plan:[{op,…}], applied:[…], deferred:[…] }` — dry-run → validate → apply. |
 | `trash_node` | `{ id }` | `{ moved_to: "_deleted/…", ok }` — moves md to trash, drops node from D1/FTS. |
 | `bump_access` | `{ ids[], kind }` | `{ ok }` — fire-and-forget; never blocks the answer. |
+| `write_config` | `{ mcpServers?[], upsertSkills?[], deleteSkills?[] }` | `{ commit_sha, changed[] }` — edits `mcp.json` + `skills/*.md` in one commit, then invalidates the KV config cache. MCP servers must be **remote HTTPS** (stdio is unsupported on the Worker). |
 
 - GitHub writes use the **Git Trees + Commits API** so every turn is exactly **one commit** (not one
   commit per file), keeping git subrequests at ~2/turn and history growth bounded.
+
+### 4.4 Extensibility: MCP servers & skills (agent-editable)
+
+The brain's capabilities are configured **on the `brain` branch** and edited by the agent itself via
+`write_config`, so no code change is needed to add knowledge or tools:
+
+- **Skills** (`skills/*.md`) — domain-knowledge bundles (`name` + `description` + markdown body).
+  Loaded with **progressive disclosure**: only descriptions are indexed; a skill's full body is
+  pulled into context only when its description matches the prompt.
+- **MCP servers** (`mcp.json`) — remote **Model Context Protocol** servers whose tools are attached
+  to the brain agent at runtime, namespaced by server id. **Remote (HTTPS) only** — the Worker
+  runtime cannot spawn stdio servers. Each connect/tool-list/tool-call is a subrequest, so it is
+  charged to the budget and a failed server degrades gracefully (the turn proceeds without it).
+- Both are assembled into a single config that is **KV-cached** and invalidated on edit, so
+  steady-state turns pay **zero** git reads for configuration.
 
 ---
 
@@ -186,6 +210,8 @@ graph ops are **idempotent**.
     concepts/      # ideas, notes, definitions
     journal/       # dated entries
     archive/       # archived (rarely used) content, still indexed-on-demand
+    skills/        # agent-editable skill bundles (name + description + markdown body)
+    mcp.json       # remote MCP servers exposed to the brain agent (HTTPS only)
     _deleted/      # trash: removed content, NOT in D1/FTS, recoverable from git
     _backup/       # monthly D1 snapshot (disaster recovery only)
   ```

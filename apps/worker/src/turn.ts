@@ -7,16 +7,34 @@
  */
 
 import type { ChatTurnRequest, TraceEvent, TurnMetrics, TurnStreamEvent } from "@second-brain/shared";
+import type { AgentInput, ContentPart, Message } from "agent-framework-js";
 import type { Env } from "./env.js";
 import { createTurnContext } from "./runtime/context.js";
 import { BudgetExceededError, BudgetSoftCapError } from "./runtime/budget.js";
 import { buildProvider } from "./providers/index.js";
 import { createBrainAgent } from "./agents/brain.js";
 import { runConsolidation } from "./agents/consolidator.js";
+import { loadBrainConfig } from "./storage/config.js";
+import { attachMcpTools, closeMcp } from "./storage/mcp.js";
 import { nowIso } from "./util/ids.js";
 import { redact } from "./middleware/redaction.js";
 
 type Emit = (event: TurnStreamEvent) => void;
+
+/**
+ * Build the agent input for a turn. Returns a plain string for text-only turns,
+ * or a multimodal user {@link Message} when vision-capable and images are present.
+ * Images are dropped (with the text preserved) when the model lacks vision support.
+ */
+function buildAgentInput(req: ChatTurnRequest, supportsVision: boolean): AgentInput {
+  if (!supportsVision || !req.images || req.images.length === 0) return req.message;
+  const parts: ContentPart[] = [
+    ...(req.message ? [{ type: "text", text: req.message } as ContentPart] : []),
+    ...req.images.map((img): ContentPart => ({ type: "image", data: img.data, mimeType: img.mimeType })),
+  ];
+  const message: Message = { role: "user", parts };
+  return [message];
+}
 
 function metricsOf(ctx: ReturnType<typeof createTurnContext>): TurnMetrics {
   return {
@@ -42,13 +60,24 @@ export async function runTurn(env: Env, req: ChatTurnRequest, emit: Emit): Promi
   });
 
   try {
-    const { provider, model } = buildProvider(env, req);
-    const brain = createBrainAgent(ctx, provider, model);
+    const { provider, model, supportsVision } = buildProvider(env, req);
 
-    for await (const chunk of brain.runStream(req.message)) {
-      if (chunk.type === "text") emit({ type: "text", text: chunk.text });
-      else if (chunk.type === "reasoning") emit({ type: "reasoning", text: chunk.text });
-      // 'done' carries the final RunResult; metrics are emitted below.
+    // Load the brain's own config (MCP servers + skills), then attach MCP tools.
+    const config = await loadBrainConfig(ctx);
+    const mcp = await attachMcpTools(ctx, config.mcpServers);
+    const brain = createBrainAgent(ctx, provider, model, {
+      extraTools: mcp.tools,
+      skills: config.skills,
+    });
+
+    try {
+      for await (const chunk of brain.runStream(buildAgentInput(req, supportsVision))) {
+        if (chunk.type === "text") emit({ type: "text", text: chunk.text });
+        else if (chunk.type === "reasoning") emit({ type: "reasoning", text: chunk.text });
+        // 'done' carries the final RunResult; metrics are emitted below.
+      }
+    } finally {
+      await closeMcp(mcp);
     }
 
     // Mandatory-but-conditional consolidation: only when the turn changed something.

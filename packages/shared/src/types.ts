@@ -158,8 +158,22 @@ export interface ChatTurnRequest {
   /** Copilot model id (ignored when provider is lmstudio). */
   model?: string;
   lmStudio?: LmStudioConfig;
+  /**
+   * Optional image attachments for vision-capable models. `data` is raw base64
+   * (no `data:` URL prefix); ignored by the worker when the chosen model does not
+   * advertise vision support.
+   */
+  images?: ChatImage[];
   /** Resume token from a previous partial turn (budget checkpoint). */
   resumeToken?: string;
+}
+
+/** A single image attachment sent with a chat turn. */
+export interface ChatImage {
+  /** Raw base64-encoded image bytes (no `data:` prefix). */
+  data: string;
+  /** MIME type, e.g. `image/png`. */
+  mimeType: string;
 }
 
 /** Per-turn budget/observability counters surfaced to the UI. */
