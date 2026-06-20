@@ -45,6 +45,8 @@ STEP 3 — STORE (write once)
   never create duplicates.
 - Call write_brain ONCE with ALL nodes for this turn (they become a single commit). Omit 'id' to
   create; pass an existing id to update. Briefly confirm what you saved and how it was classified.
+- To DELETE a note the user no longer wants, call trash_note with its id (from graph_search). It is
+  recoverable from trash; confirm before deleting if the intent is unclear.
 - Example: "Hi, I'm Varun, I build X and prefer Y" → a 'person' node for the owner (bio in body),
   optionally a 'project' node for X linked via authored_by, and a 'preference' node for Y.
 
