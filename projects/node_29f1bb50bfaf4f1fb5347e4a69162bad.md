@@ -1,10 +1,10 @@
 ---
 id: node_29f1bb50bfaf4f1fb5347e4a69162bad
-type: project
+type: experience
 title: "MAQ Software — Work Experience"
 summary: "Varun's full-time employment at MAQ Software, Mumbai, from Jul 2023 to present, across SE1 and SE2 roles."
 createdAt: 2026-06-20T09:01:33.389Z
-updatedAt: 2026-06-20T09:01:33.389Z
+updatedAt: 2026-06-20T09:03:45.282Z
 tags: ["maq software", "software engineer", "data engineering", "agentic ai", "azure", "microsoft", "work experience"]
 edges:
   - { to: node_3c1c1233d8994e6c9c5753eeb0d13090, type: authored_by }
