@@ -11,11 +11,14 @@
  * @packageDocumentation
  */
 
-import type { ChatTurnRequest, TurnStreamEvent } from "@second-brain/shared";
+import type { BrainConfigUpdate, ChatTurnRequest, TurnStreamEvent } from "@second-brain/shared";
 import type { Env } from "./env.js";
 import { buildAuthorizeUrl, completeOAuth } from "./auth/oauth.js";
 import { verifySession } from "./auth/session.js";
 import { fetchCopilotModels } from "./providers/copilotModels.js";
+import { testProvider } from "./providers/index.js";
+import { createTurnContext } from "./runtime/context.js";
+import { applyConfigChanges, invalidateBrainConfig, loadBrainConfig } from "./storage/config.js";
 import { runTurn } from "./turn.js";
 
 /** Build CORS headers, allowing the configured Pages origin and localhost dev. */
@@ -98,6 +101,49 @@ export default {
       } catch {
         // Fall back gracefully; the frontend keeps a static list.
         return json({ models: [], default: env.COPILOT_DEFAULT_MODEL }, { status: 200 }, corsHeaders);
+      }
+    }
+
+    // --- Provider connectivity test ---
+    if (url.pathname === "/provider/test" && req.method === "POST") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      const body = (await req.json().catch(() => null)) as Pick<
+        ChatTurnRequest,
+        "provider" | "lmStudio"
+      > | null;
+      if (!body?.provider) return json({ ok: false, error: "invalid_request" }, { status: 400 }, corsHeaders);
+      const result = await testProvider(env, body);
+      return json(result, { status: 200 }, corsHeaders);
+    }
+
+    // --- Brain config: read MCP servers + skills ---
+    if (url.pathname === "/config" && req.method === "GET") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      const ctx = createTurnContext(env, () => {});
+      // Always read the latest from git, bypassing a stale KV cache for the UI.
+      await invalidateBrainConfig(ctx);
+      const config = await loadBrainConfig(ctx);
+      return json(config, { status: 200 }, corsHeaders);
+    }
+
+    // --- Brain config: edit MCP servers + skills ---
+    if (url.pathname === "/config" && req.method === "POST") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      const body = (await req.json().catch(() => null)) as BrainConfigUpdate | null;
+      if (!body) return json({ error: "invalid_request" }, { status: 400 }, corsHeaders);
+      try {
+        const ctx = createTurnContext(env, () => {});
+        const result = await applyConfigChanges(ctx, body);
+        return json(result, { status: 200 }, corsHeaders);
+      } catch (err) {
+        return json(
+          { error: err instanceof Error ? err.message : "config_update_failed" },
+          { status: 500 },
+          corsHeaders,
+        );
       }
     }
 

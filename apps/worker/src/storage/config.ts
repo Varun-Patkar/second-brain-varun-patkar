@@ -17,29 +17,24 @@
  * @packageDocumentation
  */
 
+import type {
+  BrainConfigUpdate,
+  BrainConfigUpdateResult,
+  BrainSkill,
+  McpServerConfig,
+} from "@second-brain/shared";
 import type { TurnContext } from "../runtime/context.js";
-import { listDir, readFile } from "./github.js";
+import { commitBatch, listDir, readFile } from "./github.js";
 
 const CONFIG_CACHE_KEY = "config:brain";
 const MCP_PATH = "mcp.json";
 const SKILLS_DIR = "skills";
 
-/** A remote MCP server the brain can call tools from. */
-export interface McpServerConfig {
-  /** Stable id; becomes the namespace prefix for the server's tools. */
-  id: string;
-  /** Remote MCP endpoint URL (HTTP/SSE). */
-  url: string;
-  /** Whether this server's tools are enabled. Defaults to true. */
-  enabled?: boolean;
-}
+/** Re-exported wire types so worker modules can import them from one place. */
+export type { McpServerConfig, BrainSkill } from "@second-brain/shared";
 
-/** A skill loaded from the brain (name + description + full content). */
-export interface LoadedSkill {
-  name: string;
-  description: string;
-  content: string;
-}
+/** A skill loaded from the brain (alias of the shared wire type). */
+export type LoadedSkill = BrainSkill;
 
 /** The assembled, cacheable brain configuration. */
 export interface BrainConfig {
@@ -140,5 +135,51 @@ export const configPaths = {
   mcp: MCP_PATH,
   skill: (name: string): string => `${SKILLS_DIR}/${name.replace(/[^a-z0-9._-]/gi, "-")}.md`,
 };
+
+/**
+ * Apply a config edit (replace MCP servers, upsert/delete skills) as a single
+ * commit on the `brain` branch, then invalidate the cached config. Shared by the
+ * agent's `write_config` tool and the UI's `POST /config` route so both paths
+ * behave identically. MCP servers are constrained to remote HTTPS endpoints.
+ */
+export async function applyConfigChanges(
+  ctx: TurnContext,
+  update: BrainConfigUpdate,
+): Promise<BrainConfigUpdateResult> {
+  const writes: Array<{ path: string; content: string }> = [];
+  const deletes: string[] = [];
+  const changed: string[] = [];
+
+  if (update.mcpServers) {
+    const cleaned = update.mcpServers
+      .filter((s) => s.id && s.url)
+      .map((s) => ({ id: s.id, url: s.url, enabled: s.enabled !== false }));
+    writes.push({ path: MCP_PATH, content: serializeMcp(cleaned) });
+    changed.push(MCP_PATH);
+  }
+
+  for (const skill of update.upsertSkills ?? []) {
+    const path = configPaths.skill(skill.name);
+    writes.push({ path, content: serializeSkill(skill) });
+    changed.push(path);
+  }
+
+  for (const name of update.deleteSkills ?? []) {
+    deletes.push(configPaths.skill(name));
+    changed.push(`-${configPaths.skill(name)}`);
+  }
+
+  if (writes.length === 0 && deletes.length === 0) {
+    return { commitSha: "", changed: [] };
+  }
+
+  const commitSha = await commitBatch(ctx, {
+    message: `brain: update config (${changed.length} change(s))`,
+    writes,
+    deletes,
+  });
+  await invalidateBrainConfig(ctx);
+  return { commitSha, changed };
+}
 
 export { EMPTY as EMPTY_BRAIN_CONFIG };

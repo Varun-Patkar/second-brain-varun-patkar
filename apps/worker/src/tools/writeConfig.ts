@@ -9,14 +9,7 @@
 
 import { defineTool } from "agent-framework-js/tools";
 import type { TurnContext } from "../runtime/context.js";
-import { commitBatch } from "../storage/github.js";
-import {
-  configPaths,
-  invalidateBrainConfig,
-  serializeMcp,
-  serializeSkill,
-  type McpServerConfig,
-} from "../storage/config.js";
+import { applyConfigChanges, type McpServerConfig } from "../storage/config.js";
 
 interface WriteConfigArgs {
   /** Full replacement list for `mcp.json` (omit to leave MCP servers unchanged). */
@@ -71,43 +64,15 @@ export function createWriteConfigTool(ctx: TurnContext) {
       },
     },
     run: async ({ mcpServers, upsertSkills, deleteSkills }) => {
-      const writes: Array<{ path: string; content: string }> = [];
-      const deletes: string[] = [];
-      const changed: string[] = [];
-
-      if (mcpServers) {
-        // Guard the runtime constraint: only remote HTTPS servers are usable.
-        const cleaned = mcpServers
-          .filter((s) => s.id && s.url)
-          .map((s) => ({ id: s.id, url: s.url, enabled: s.enabled !== false }));
-        writes.push({ path: configPaths.mcp, content: serializeMcp(cleaned) });
-        changed.push(configPaths.mcp);
-      }
-
-      for (const skill of upsertSkills ?? []) {
-        const path = configPaths.skill(skill.name);
-        writes.push({ path, content: serializeSkill(skill) });
-        changed.push(path);
-      }
-
-      for (const name of deleteSkills ?? []) {
-        const path = configPaths.skill(name);
-        deletes.push(path);
-        changed.push(`-${path}`);
-      }
-
-      if (writes.length === 0 && deletes.length === 0) {
-        return { commitSha: "", changed: [] };
-      }
-
-      ctx.emitTrace({ agent: "brain", tool: "write_config", detail: `${changed.length} change(s)` });
-      const commitSha = await commitBatch(ctx, {
-        message: `brain: update config (${changed.length} change(s))`,
-        writes,
-        deletes,
+      const result = await applyConfigChanges(ctx, {
+        ...(mcpServers ? { mcpServers } : {}),
+        ...(upsertSkills ? { upsertSkills } : {}),
+        ...(deleteSkills ? { deleteSkills } : {}),
       });
-      await invalidateBrainConfig(ctx);
-      return { commitSha, changed };
+      if (result.changed.length > 0) {
+        ctx.emitTrace({ agent: "brain", tool: "write_config", detail: `${result.changed.length} change(s)` });
+      }
+      return result;
     },
   });
 }

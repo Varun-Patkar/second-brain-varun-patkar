@@ -19,6 +19,7 @@ let attachId = 0;
 export function Composer({
   disabled,
   streaming,
+  connected,
   sttUrl,
   visionEnabled,
   onSend,
@@ -27,6 +28,8 @@ export function Composer({
 }: {
   disabled: boolean;
   streaming: boolean;
+  /** Whether the provider connection test passed; gates sending. */
+  connected: boolean;
   /** STT server base URL; empty hides the mic button. */
   sttUrl: string;
   /** Whether the selected model accepts images; gates the attach button. */
@@ -70,6 +73,10 @@ export function Composer({
     });
 
   const submit = () => {
+    if (!connected) {
+      onError?.("Test your provider connection (in settings) before chatting.");
+      return;
+    }
     if (!text.trim() && attachments.length === 0) return;
     onSend(
       text,
@@ -175,9 +182,11 @@ export function Composer({
           }}
           rows={1}
           placeholder={
-            voice.state === "recording"
-              ? "Listening… tap the square to transcribe"
-              : "Ask, or dump knowledge into your brain…"
+            !connected
+              ? "Test your provider connection in settings to start chatting…"
+              : voice.state === "recording"
+                ? "Listening… tap the square to transcribe"
+                : "Ask, or dump knowledge into your brain…"
           }
           className="max-h-40 flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-slate-200 outline-none placeholder:text-slate-600"
         />
@@ -196,7 +205,7 @@ export function Composer({
             whileTap={{ scale: 0.92 }}
             whileHover={{ scale: 1.05 }}
             onClick={submit}
-            disabled={disabled || (!text.trim() && attachments.length === 0)}
+            disabled={disabled || !connected || (!text.trim() && attachments.length === 0)}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-glow-500 to-aqua-400 text-white shadow-lg transition disabled:opacity-40"
             title="Send"
           >

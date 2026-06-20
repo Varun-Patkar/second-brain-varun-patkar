@@ -220,3 +220,53 @@ export interface ModelsResponse {
   models: CopilotModelInfo[];
   default: string;
 }
+
+/* ------------------------------------------------------------------ */
+/* Provider connection test + brain config (UI-editable MCP / skills)  */
+/* ------------------------------------------------------------------ */
+
+/** Result of a provider connectivity test (`POST /provider/test`). */
+export interface ProviderTestResult {
+  ok: boolean;
+  /** Human-friendly explanation when `ok` is false. */
+  error?: string;
+}
+
+/** A remote MCP server exposed to the brain agent. */
+export interface McpServerConfig {
+  /** Stable id; namespaces the server's tools. */
+  id: string;
+  /** Remote MCP HTTPS endpoint. */
+  url: string;
+  /** Whether the server's tools are enabled. Defaults to true. */
+  enabled?: boolean;
+}
+
+/** A skill bundle (name + description + markdown body). */
+export interface BrainSkill {
+  name: string;
+  description: string;
+  content: string;
+}
+
+/** The brain config returned by `GET /config`. */
+export interface BrainConfigDto {
+  mcpServers: McpServerConfig[];
+  skills: BrainSkill[];
+}
+
+/** A config edit submitted via `POST /config` (and the `write_config` tool). */
+export interface BrainConfigUpdate {
+  /** Full replacement list for `mcp.json` (omit to leave MCP servers unchanged). */
+  mcpServers?: McpServerConfig[];
+  /** Skills to create or overwrite. */
+  upsertSkills?: BrainSkill[];
+  /** Skill names to delete. */
+  deleteSkills?: string[];
+}
+
+/** Result of applying a config edit. */
+export interface BrainConfigUpdateResult {
+  commitSha: string;
+  changed: string[];
+}

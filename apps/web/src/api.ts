@@ -5,7 +5,16 @@
  * @packageDocumentation
  */
 
-import type { ChatTurnRequest, ModelsResponse, SessionInfo, TurnStreamEvent } from "@second-brain/shared";
+import type {
+  BrainConfigDto,
+  BrainConfigUpdate,
+  BrainConfigUpdateResult,
+  ChatTurnRequest,
+  ModelsResponse,
+  ProviderTestResult,
+  SessionInfo,
+  TurnStreamEvent,
+} from "@second-brain/shared";
 
 /** Worker base URL, injected at build time (see .env / SETUP). */
 const WORKER_URL =
@@ -111,12 +120,51 @@ export async function* streamChat(
 }
 
 /**
+ * Test connectivity to the chosen provider through the worker (which is the path
+ * a real turn takes). Returns a human-friendly result.
+ */
+export async function testProvider(
+  body: Pick<ChatTurnRequest, "provider" | "lmStudio">,
+): Promise<ProviderTestResult> {
+  try {
+    const res = await fetch(`${WORKER_URL}/provider/test`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return { ok: false, error: `Worker returned HTTP ${res.status}.` };
+    return (await res.json()) as ProviderTestResult;
+  } catch {
+    return { ok: false, error: "Couldn't reach the worker backend." };
+  }
+}
+
+/** Fetch the brain config (MCP servers + skills) for the management UI. */
+export async function getConfig(): Promise<BrainConfigDto> {
+  const res = await fetch(`${WORKER_URL}/config`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(`Failed to load config: HTTP ${res.status}`);
+  return (await res.json()) as BrainConfigDto;
+}
+
+/** Apply a brain-config edit (MCP servers / skills). */
+export async function saveConfig(update: BrainConfigUpdate): Promise<BrainConfigUpdateResult> {
+  const res = await fetch(`${WORKER_URL}/config`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(update),
+  });
+  const data = (await res.json().catch(() => ({}))) as BrainConfigUpdateResult & { error?: string };
+  if (!res.ok) throw new Error(data.error ?? `Failed to save config: HTTP ${res.status}`);
+  return data;
+}
+
+/**
  * Transcribe a recorded audio blob via the Whisper STT server's `POST /stt`
  * endpoint (multipart/form-data, field `file`). Returns the transcript text.
  *
  * @param sttUrl - Base URL of the STT server (e.g. a devtunnel). Trailing slash optional.
  * @param audio - The recorded audio blob (webm/ogg/wav…).
- * @throws if the server is unreachable or returns a non-OK status.
+ * @throws a human-friendly error if the server is unreachable or returns non-OK.
  */
 export async function transcribeAudio(sttUrl: string, audio: Blob): Promise<string> {
   const base = sttUrl.replace(/\/$/, "");
@@ -124,9 +172,17 @@ export async function transcribeAudio(sttUrl: string, audio: Blob): Promise<stri
   // The server accepts webm/ogg/wav/mp3/mpeg; name + type help it pick a decoder.
   const ext = audio.type.includes("ogg") ? "ogg" : audio.type.includes("wav") ? "wav" : "webm";
   form.append("file", audio, `speech.${ext}`);
-  const res = await fetch(`${base}/stt`, { method: "POST", body: form });
-  if (!res.ok) throw new Error(`STT failed: ${res.status}`);
-  const data = (await res.json()) as { text?: string };
+  let res: Response;
+  try {
+    res = await fetch(`${base}/stt`, { method: "POST", body: form });
+  } catch {
+    throw new Error("Couldn't reach the speech-to-text server. Is it running and the tunnel up?");
+  }
+  if (res.status === 502 || res.status === 503 || res.status === 504) {
+    throw new Error("The speech-to-text tunnel is up but the local server didn't respond.");
+  }
+  if (!res.ok) throw new Error(`Speech-to-text failed (HTTP ${res.status}).`);
+  const data = (await res.json().catch(() => ({}))) as { text?: string };
   return (data.text ?? "").trim();
 }
 

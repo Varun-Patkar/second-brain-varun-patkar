@@ -1,8 +1,9 @@
 /** Provider + model picker (GitHub Copilot / LM Studio). */
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Cpu, Server, Mic } from "lucide-react";
+import { Cpu, Server, Mic, Plug, Check, X, Loader2, SlidersHorizontal } from "lucide-react";
 import type { ProviderConfig } from "../types.js";
+import type { Connection } from "../hooks/useProviderConnection.js";
 
 /** Static fallback list, used only if the dynamic /models fetch returns nothing. */
 const FALLBACK_COPILOT_MODELS = [
@@ -27,10 +28,19 @@ export function ProviderPicker({
   cfg,
   onChange,
   models,
+  conn,
+  onTest,
+  onManageConfig,
 }: {
   cfg: ProviderConfig;
   onChange: (next: ProviderConfig) => void;
   models?: string[];
+  /** Current provider connection state (gates chat). */
+  conn?: Connection;
+  /** Run a connection test for the active provider. */
+  onTest?: () => void;
+  /** Open the MCP/skills management UI. */
+  onManageConfig?: () => void;
 }) {
   const set = (patch: Partial<ProviderConfig>) => onChange({ ...cfg, ...patch });
   const modelOptions = models && models.length > 0 ? models : FALLBACK_COPILOT_MODELS;
@@ -126,6 +136,53 @@ export function ProviderPicker({
           </div>
         </Field>
       </div>
+
+      {/* Connection test — chat stays disabled until this passes. */}
+      <div className="mt-3 border-t border-white/5 pt-3">
+        <button
+          onClick={onTest}
+          disabled={conn?.status === "testing"}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
+        >
+          {conn?.status === "testing" ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Plug className="h-4 w-4" />
+          )}
+          {conn?.status === "testing" ? "Testing…" : "Test connection"}
+        </button>
+        <ConnStatusLine conn={conn} />
+      </div>
+
+      {/* MCP servers + skills management. */}
+      {onManageConfig && (
+        <button
+          onClick={onManageConfig}
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/10"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          Manage MCP &amp; skills
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Renders the connection status (ok / fail + reason) under the test button. */
+function ConnStatusLine({ conn }: { conn: Connection | undefined }) {
+  if (!conn || conn.status === "idle" || conn.status === "testing") return null;
+  if (conn.status === "ok") {
+    return (
+      <div className="mt-2 flex items-center gap-1.5 text-xs text-emerald-400">
+        <Check className="h-3.5 w-3.5" />
+        Connected — ready to chat.
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2 flex items-start gap-1.5 text-xs text-amber-400">
+      <X className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+      <span>{conn.error ?? "Connection failed."}</span>
     </div>
   );
 }

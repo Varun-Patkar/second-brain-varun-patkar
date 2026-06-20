@@ -9,8 +9,9 @@
 import { createCopilotProvider, createOpenAICompatibleProvider } from "agent-framework-js/providers";
 import type { Provider } from "agent-framework-js/providers";
 import type { ModelCapabilities } from "agent-framework-js";
-import type { ChatTurnRequest } from "@second-brain/shared";
+import type { ChatTurnRequest, ProviderTestResult } from "@second-brain/shared";
 import type { Env } from "../env.js";
+import { fetchCopilotModels } from "./copilotModels.js";
 
 /** Map a Copilot model id to capabilities by family; unknown ids get a safe default. */
 function copilotModelCaps(id: string): ModelCapabilities {
@@ -56,4 +57,54 @@ export function buildProvider(
     defaultModel: model,
   });
   return { provider, model, supportsVision: caps.supportsVision === true };
+}
+
+/**
+ * Test that the selected provider is reachable and usable, returning a
+ * human-friendly result. Copilot is verified by listing models (proves the token
+ * works); LM Studio is verified by hitting its OpenAI-compatible `/models`
+ * endpoint over the supplied devtunnel URL.
+ */
+export async function testProvider(
+  env: Env,
+  req: Pick<ChatTurnRequest, "provider" | "lmStudio">,
+): Promise<ProviderTestResult> {
+  if (req.provider === "lmstudio") {
+    const cfg = req.lmStudio;
+    if (!cfg?.baseUrl) return { ok: false, error: "Enter the LM Studio devtunnel URL first." };
+    const base = cfg.baseUrl.replace(/\/$/, "");
+    try {
+      const res = await fetch(`${base}/models`, {
+        headers: cfg.key ? { Authorization: `Bearer ${cfg.key}` } : {},
+      });
+      if (res.ok) return { ok: true };
+      if (res.status === 401 || res.status === 403) {
+        return { ok: false, error: "LM Studio rejected the key (401/403). Check the optional key." };
+      }
+      if (res.status === 404) {
+        return { ok: false, error: "Reached the server but /models was not found — is the URL missing /v1?" };
+      }
+      return { ok: false, error: `LM Studio returned HTTP ${res.status}.` };
+    } catch {
+      return {
+        ok: false,
+        error: "Couldn't reach LM Studio. Is the server running and the dev tunnel up?",
+      };
+    }
+  }
+
+  // Copilot: a successful model list proves the server-side token is valid.
+  try {
+    const models = await fetchCopilotModels(env);
+    if (models.length === 0) {
+      return { ok: false, error: "Copilot responded but offered no models — token may be limited." };
+    }
+    return { ok: true };
+  } catch (err) {
+    const m = (err instanceof Error ? err.message : String(err)).toLowerCase();
+    if (m.includes("401") || m.includes("unauthor") || m.includes("expired")) {
+      return { ok: false, error: "Copilot token expired or invalid — refresh COPILOT_TOKEN on the worker." };
+    }
+    return { ok: false, error: "Couldn't reach GitHub Copilot. Try again in a moment." };
+  }
 }

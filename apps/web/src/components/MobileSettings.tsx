@@ -11,6 +11,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import type { TraceEvent, TurnMetrics } from "@second-brain/shared";
 import type { ProviderConfig } from "../types.js";
+import type { Connection } from "../hooks/useProviderConnection.js";
 import { ProviderPicker } from "./ProviderPicker.js";
 import { Trace } from "./Trace.js";
 
@@ -22,6 +23,9 @@ import { Trace } from "./Trace.js";
  * @param cfg - Current provider configuration.
  * @param onChange - Provider configuration setter.
  * @param models - Dynamic Copilot model ids (optional).
+ * @param conn - Provider connection state.
+ * @param onTest - Run a connection test.
+ * @param onManageConfig - Open the MCP/skills manager.
  * @param trace - Live agent-activity events for the current turn.
  * @param metrics - Per-turn subrequest metrics (or null before the first turn).
  */
@@ -31,6 +35,9 @@ export function MobileSettings({
   cfg,
   onChange,
   models,
+  conn,
+  onTest,
+  onManageConfig,
   trace,
   metrics,
 }: {
@@ -39,6 +46,9 @@ export function MobileSettings({
   cfg: ProviderConfig;
   onChange: (next: ProviderConfig) => void;
   models?: string[];
+  conn?: Connection;
+  onTest?: () => void;
+  onManageConfig?: () => void;
   trace: TraceEvent[];
   metrics: TurnMetrics | null;
 }) {
@@ -87,7 +97,14 @@ export function MobileSettings({
             </div>
 
             <div className="min-h-0 flex-1 space-y-3 overflow-auto scroll-thin px-0.5">
-              <ProviderPicker cfg={cfg} onChange={onChange} {...(models ? { models } : {})} />
+              <ProviderPicker
+                cfg={cfg}
+                onChange={onChange}
+                {...(models ? { models } : {})}
+                {...(conn ? { conn } : {})}
+                {...(onTest ? { onTest } : {})}
+                {...(onManageConfig ? { onManageConfig } : {})}
+              />
               <div className="h-[44vh] min-h-[16rem]">
                 <Trace trace={trace} metrics={metrics} />
               </div>

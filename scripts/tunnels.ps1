@@ -44,7 +44,10 @@
 
 .NOTES
     Anonymous access is enabled so the browser and worker can reach the endpoints
-    without a tunnel token. The tunnel keeps running until you press 'q' to close it.
+    without a tunnel token. The script hosts the tunnel, reads the real forwarding
+    URL (a generated alias, not the tunnel name), prints it, and copies it to the
+    clipboard. The URL stays the same as long as this named tunnel is reused (not
+    deleted). The tunnel keeps running until you press 'q' to close it.
 #>
 
 [CmdletBinding()]
@@ -91,30 +94,71 @@ if ($LASTEXITCODE -ne 0 -or -not $existing) {
     Write-Host "Reusing existing tunnel '$TunnelId'." -ForegroundColor Cyan
 }
 
-# 4) Register the selected port forwards (idempotent — ignore "already exists" errors).
+# 4) Register the selected port forwards. The local servers (LM Studio, Whisper)
+#    speak plain HTTP, so the port protocol must be 'http' — using 'https' makes
+#    the relay try to connect to the local port over TLS and return 502. We delete
+#    any pre-existing port first so a stale 'https' port from an earlier run is
+#    replaced (the public URL stays https regardless of the local protocol).
 foreach ($p in $ports) {
-    Write-Host "Adding port $p (anonymous access)..." -ForegroundColor Cyan
-    devtunnel port create $TunnelId -p $p --protocol https 2>$null | Out-Null
+    Write-Host "Adding port $p (http, anonymous access)..." -ForegroundColor Cyan
+    devtunnel port delete $TunnelId -p $p 2>$null | Out-Null
+    devtunnel port create $TunnelId -p $p --protocol http 2>$null | Out-Null
     devtunnel access create $TunnelId -p $p --anonymous 2>$null | Out-Null
 }
 
-# 5) Show the public URLs so they can be pasted once into the app settings.
-Write-Host "`nPublic URLs (paste into Second Brain settings):" -ForegroundColor Green
-devtunnel show $TunnelId
-
-if ($Service -ne "stt") {
-    Write-Host "`n  • LM Studio   -> the port-$LmStudioPort URL  (LM Studio Devtunnel URL field, append /v1)" -ForegroundColor Green
-}
-if ($Service -ne "lmstudio") {
-    Write-Host "  • STT/Whisper -> the port-$SttPort URL    (Speech-to-text URL field)" -ForegroundColor Green
-}
-
-# 6) Host the tunnel in the background so this window can keep showing the URLs
-#    and accept a quit key. Output is redirected to a temp log to keep the prompt
-#    readable. Pressing 'q' (or Ctrl+C) stops hosting and closes the tunnel.
+# 5) Start hosting in the background. The public forwarding URL only appears in
+#    'devtunnel show' once a host connection exists, and it uses a generated alias
+#    (e.g. https://ab12cd34-9000.<cluster>.devtunnels.ms) — NOT the tunnel name —
+#    so we host first, then read the real URL from the output.
 $log = Join-Path $env:TEMP "devtunnel-$TunnelId.log"
 $host_proc = Start-Process -FilePath "devtunnel" -ArgumentList @("host", $TunnelId) `
     -NoNewWindow -PassThru -RedirectStandardOutput $log -RedirectStandardError "$log.err"
+
+# Extract the forwarding URL for a given port from 'devtunnel show' text.
+function Get-PortUrl([string]$text, [int]$port) {
+    foreach ($m in [regex]::Matches($text, 'https://[^\s/]+\.devtunnels\.ms')) {
+        if ($m.Value -match "-$port\.") { return $m.Value }
+    }
+    return $null
+}
+
+# Poll until the forwarding URL(s) are live (host connection established).
+Write-Host "`nWaiting for the tunnel to come online..." -ForegroundColor Cyan
+$urls = @{}
+for ($i = 0; $i -lt 30 -and -not $host_proc.HasExited; $i++) {
+    Start-Sleep -Milliseconds 800
+    $showText = devtunnel show $TunnelId 2>$null | Out-String
+    $allFound = $true
+    foreach ($p in $ports) {
+        $u = Get-PortUrl $showText $p
+        if ($u) { $urls[$p] = $u } else { $allFound = $false }
+    }
+    if ($allFound) { break }
+}
+
+# 6) Print the resolved URL(s) and copy them to the clipboard.
+if ($urls.Count -eq 0) {
+    Write-Host "Could not resolve the forwarding URL yet — run 'devtunnel show $TunnelId' to see it." -ForegroundColor DarkYellow
+} else {
+    Write-Host "`nPublic URLs (also copied to clipboard):" -ForegroundColor Green
+    $clip = @()
+    if ($Service -ne "stt" -and $urls[$LmStudioPort]) {
+        $lmUrl = "$($urls[$LmStudioPort])/v1"
+        Write-Host "  • LM Studio   -> $lmUrl   (LM Studio Devtunnel URL field)" -ForegroundColor Green
+        $clip += $lmUrl
+    }
+    if ($Service -ne "lmstudio" -and $urls[$SttPort]) {
+        Write-Host "  • STT/Whisper -> $($urls[$SttPort])   (Speech-to-text URL field)" -ForegroundColor Green
+        $clip += $urls[$SttPort]
+    }
+    try {
+        Set-Clipboard -Value ($clip -join "`n")
+        Write-Host "`n  (clipboard updated$(if ($clip.Count -gt 1) { ' — one URL per line' }))" -ForegroundColor DarkGray
+    } catch {
+        Write-Host "`n  (could not access clipboard — copy the URL(s) above manually)" -ForegroundColor DarkYellow
+    }
+    Write-Host "  The URL stays the same as long as this named tunnel is reused (not deleted)." -ForegroundColor DarkGray
+}
 
 try {
     Write-Host "`nTunnel is live. Press 'q' to stop hosting and close the tunnel.`n" -ForegroundColor Cyan

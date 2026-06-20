@@ -13,6 +13,7 @@ import { clearToken, completeLogin, getModels, getSession } from "./api.js";
 import { DEFAULT_PROVIDER_CONFIG, configSupportsVision, type ProviderConfig } from "./types.js";
 import { useChat } from "./hooks/useChat.js";
 import { useLocalStorage } from "./hooks/useLocalStorage.js";
+import { useProviderConnection } from "./hooks/useProviderConnection.js";
 import { Login } from "./components/Login.js";
 import { TopBar } from "./components/TopBar.js";
 import { ProviderPicker } from "./components/ProviderPicker.js";
@@ -20,6 +21,7 @@ import { Message } from "./components/Message.js";
 import { Trace } from "./components/Trace.js";
 import { Composer } from "./components/Composer.js";
 import { MobileSettings } from "./components/MobileSettings.js";
+import { ConfigManager } from "./components/ConfigManager.js";
 
 type AuthState = "loading" | "anon" | "authed";
 
@@ -31,7 +33,10 @@ export function App() {
   const [models, setModels] = useState<string[]>([]);
   // Controls the mobile bottom-sheet (provider picker + agent activity).
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Controls the MCP/skills management modal.
+  const [configOpen, setConfigOpen] = useState(false);
   const chat = useChat();
+  const { conn, test } = useProviderConnection(cfg, auth === "authed");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Bootstrap: complete OAuth callback if present, else restore session.
@@ -123,6 +128,7 @@ export function App() {
           <Composer
             disabled={chat.streaming}
             streaming={chat.streaming}
+            connected={conn.status === "ok"}
             sttUrl={cfg.sttUrl}
             visionEnabled={configSupportsVision(cfg)}
             onSend={(text, images) => chat.send(text, cfg, images)}
@@ -133,7 +139,14 @@ export function App() {
 
         {/* Sidebar (desktop only). */}
         <aside className="hidden min-h-0 flex-col gap-3 lg:flex">
-          <ProviderPicker cfg={cfg} onChange={setCfg} models={models} />
+          <ProviderPicker
+            cfg={cfg}
+            onChange={setCfg}
+            models={models}
+            conn={conn}
+            onTest={test}
+            onManageConfig={() => setConfigOpen(true)}
+          />
           <div className="min-h-0 flex-1">
             <Trace trace={chat.trace} metrics={chat.metrics} />
           </div>
@@ -147,9 +160,18 @@ export function App() {
         cfg={cfg}
         onChange={setCfg}
         models={models}
+        conn={conn}
+        onTest={test}
+        onManageConfig={() => {
+          setSettingsOpen(false);
+          setConfigOpen(true);
+        }}
         trace={chat.trace}
         metrics={chat.metrics}
       />
+
+      {/* MCP + skills management modal. */}
+      <ConfigManager open={configOpen} onClose={() => setConfigOpen(false)} />
     </div>
   );
 }
