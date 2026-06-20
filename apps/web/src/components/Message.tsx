@@ -7,12 +7,14 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatMessage } from "../types.js";
 import { ToolCallCard } from "./ToolCallCard.js";
+import { ImageViewer } from "./ImageViewer.js";
 
 export function Message({ message, streaming }: { message: ChatMessage; streaming: boolean }) {
   const isUser = message.role === "user";
   // Reasoning auto-expands while the model is still thinking (no answer yet).
   const thinking = streaming && !isUser && !message.content;
   const [showReasoning, setShowReasoning] = useState(false);
+  const [viewerSrc, setViewerSrc] = useState<string | null>(null);
   const reasoningOpen = showReasoning || (thinking && Boolean(message.reasoning));
 
   return (
@@ -55,13 +57,14 @@ export function Message({ message, streaming }: { message: ChatMessage; streamin
           {message.images && message.images.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-2">
               {message.images.map((src, i) => (
-                <a key={i} href={src} target="_blank" rel="noreferrer" className="block">
-                  <img
-                    src={src}
-                    alt="attachment"
-                    className="h-24 w-24 rounded-lg object-cover ring-1 ring-white/15"
-                  />
-                </a>
+                <button
+                  key={i}
+                  onClick={() => setViewerSrc(src)}
+                  className="block overflow-hidden rounded-lg ring-1 ring-white/15 transition hover:ring-glow-400/60"
+                  title="View image"
+                >
+                  <img src={src} alt="attachment" className="h-24 w-24 object-cover" />
+                </button>
               ))}
             </div>
           )}
@@ -93,6 +96,7 @@ export function Message({ message, streaming }: { message: ChatMessage; streamin
           )}
         </div>
       </div>
+      <ImageViewer src={viewerSrc} onClose={() => setViewerSrc(null)} />
     </motion.div>
   );
 }
