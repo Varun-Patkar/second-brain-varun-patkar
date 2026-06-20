@@ -1,0 +1,26 @@
+{
+  "id": "7fe8f9ae-3ce6-4a62-bbb4-fb6bf0772122",
+  "title": "Hello. I am Varun. Who are you and what can you do?",
+  "createdAt": "2026-06-20T08:28:36.247Z",
+  "updatedAt": "2026-06-20T08:28:36.247Z",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello. I am Varun. Who are you and what can you do?"
+    },
+    {
+      "role": "assistant",
+      "content": "It seems the knowledge base is fresh — no prior notes about you yet. Let me introduce myself and save your name!",
+      "trace": [],
+      "metrics": {
+        "subrequestsUsed": 1,
+        "llmCalls": 0,
+        "gitCalls": 1,
+        "d1Calls": 0,
+        "dirtySetSize": 0,
+        "toolsEnabled": 4,
+        "skillsEnabled": 0
+      }
+    }
+  ]
+}
