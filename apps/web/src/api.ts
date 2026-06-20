@@ -204,6 +204,19 @@ export async function getTurnStatus(chatId: string): Promise<boolean> {
   }
 }
 
+/** Fetch a stored chat image asset as a data URL (or null on failure). */
+export async function getChatAsset(path: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${WORKER_URL}/chats/asset?path=${encodeURIComponent(path)}`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) return null;
+    return ((await res.json()) as { dataUrl?: string }).dataUrl ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Transcribe a recorded audio blob via the Whisper STT server's `POST /stt`
  * endpoint (multipart/form-data, field `file`). Returns the transcript text.

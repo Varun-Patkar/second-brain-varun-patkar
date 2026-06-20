@@ -311,10 +311,19 @@ export interface StoredChatMessage {
   reasoning?: string;
   /** Ordered text + tool-call segments for assistant turns (inline rendering). */
   segments?: MessageSegment[];
+  /** Image attachments (user turns), stored as files under `chats/<id>/`. */
+  images?: ChatImageRef[];
   /** Agent activity (tool calls with inputs/outputs) for the assistant turn. */
   trace?: TraceEvent[];
   /** Per-turn metrics for the assistant turn. */
   metrics?: TurnMetrics;
+}
+
+/** A reference to a stored chat image on the brain branch. */
+export interface ChatImageRef {
+  /** Path on the brain branch, e.g. `chats/<id>/0-1.png`. */
+  path: string;
+  mimeType: string;
 }
 
 /** A full stored conversation on the brain branch (`chats/<id>.json`). */

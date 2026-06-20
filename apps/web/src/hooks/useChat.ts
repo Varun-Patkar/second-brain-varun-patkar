@@ -14,7 +14,7 @@ import type {
   TraceEvent,
   TurnMetrics,
 } from "@second-brain/shared";
-import { getChat, getTurnStatus, streamChat } from "../api.js";
+import { getChat, getChatAsset, getTurnStatus, streamChat } from "../api.js";
 import type { ChatMessage, ProviderConfig } from "../types.js";
 
 let idCounter = 0;
@@ -84,7 +84,14 @@ export function useChat() {
       setTrace([]);
       setMetrics(null);
 
-      const userMsg: ChatMessage = { id: nextId(), role: "user", content: text };
+      const userMsg: ChatMessage = {
+        id: nextId(),
+        role: "user",
+        content: text,
+        ...(images && images.length > 0
+          ? { images: images.map((im) => `data:${im.mimeType};base64,${im.data}`) }
+          : {}),
+      };
       const assistantId = nextId();
       setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", content: "" }]);
       setStreaming(true);
@@ -171,6 +178,19 @@ export function useChat() {
         ...(m.segments ? { segments: m.segments } : {}),
       })),
     );
+    // Resolve stored image refs to data URLs in the background (history rendering).
+    rec.messages.forEach((m, i) => {
+      if (!m.images || m.images.length === 0) return;
+      void Promise.all(m.images.map((ref) => getChatAsset(ref.path))).then((urls) => {
+        const dataUrls = urls.filter((u): u is string => Boolean(u));
+        if (dataUrls.length === 0) return;
+        setMessages((prev) => {
+          const next = [...prev];
+          if (next[i]) next[i] = { ...next[i], images: dataUrls };
+          return next;
+        });
+      });
+    });
     const lastAssistant = [...rec.messages].reverse().find((m) => m.role === "assistant");
     setTrace(lastAssistant?.trace ?? []);
     setMetrics(lastAssistant?.metrics ?? null);

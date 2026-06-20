@@ -74,6 +74,39 @@ export async function listDir(ctx: TurnContext, dirPath: string): Promise<string
 }
 
 /**
+ * Read a file from the brain branch as raw base64 (for binary assets like images).
+ * Returns null when the file is absent.
+ */
+export async function readBlobBase64(
+  ctx: TurnContext,
+  filePath: string,
+): Promise<{ base64: string } | null> {
+  const { GH_REPO, BRAIN_BRANCH } = ctx.env;
+  const res = await gh(
+    ctx,
+    `/repos/${GH_REPO}/contents/${encodeURI(filePath)}?ref=${encodeURIComponent(BRAIN_BRANCH)}`,
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`GitHub read blob ${filePath} failed: ${res.status}`);
+  const json = (await res.json()) as { content: string; encoding: string };
+  return { base64: json.content.replace(/\n/g, "") };
+}
+
+/**
+ * Create a git blob from base64 content and return its sha. Used to store binary
+ * assets (e.g. chat images) that can then be referenced by sha in a commit tree.
+ */
+export async function createBlob(ctx: TurnContext, base64: string): Promise<string> {
+  const { GH_REPO } = ctx.env;
+  const res = await gh(ctx, `/repos/${GH_REPO}/git/blobs`, {
+    method: "POST",
+    body: JSON.stringify({ content: base64, encoding: "base64" }),
+  });
+  if (!res.ok) throw new Error(`Cannot create blob: ${res.status}`);
+  return ((await res.json()) as { sha: string }).sha;
+}
+
+/**
  * Commit a batch of writes and/or deletes as one commit on the brain branch.
  * Deletes here mean "remove from this path" — callers implement trash by deleting
  * the old path and writing the same content under `_deleted/`.
@@ -82,12 +115,19 @@ export async function listDir(ctx: TurnContext, dirPath: string): Promise<string
  */
 export async function commitBatch(
   ctx: TurnContext,
-  opts: { message: string; writes?: GhFile[]; deletes?: string[] },
+  opts: {
+    message: string;
+    writes?: GhFile[];
+    deletes?: string[];
+    /** Pre-created blobs to include by sha (e.g. binary image assets). */
+    blobs?: Array<{ path: string; sha: string }>;
+  },
 ): Promise<string> {
   const { GH_REPO, BRAIN_BRANCH } = ctx.env;
   const writes = opts.writes ?? [];
   const deletes = opts.deletes ?? [];
-  if (writes.length === 0 && deletes.length === 0) {
+  const blobs = opts.blobs ?? [];
+  if (writes.length === 0 && deletes.length === 0 && blobs.length === 0) {
     throw new Error("commitBatch called with no changes");
   }
 
@@ -106,9 +146,10 @@ export async function commitBatch(
   if (!commitRes.ok) throw new Error(`Cannot read base commit: ${commitRes.status}`);
   const baseCommit = (await commitRes.json()) as { tree: { sha: string } };
 
-  // 3) New tree (inline blob content; deletions use sha:null).
+  // 3) New tree (inline blob content; pre-created blobs by sha; deletions use sha:null).
   const tree = [
     ...writes.map((w) => ({ path: w.path, mode: "100644", type: "blob", content: w.content })),
+    ...blobs.map((b) => ({ path: b.path, mode: "100644", type: "blob", sha: b.sha })),
     ...deletes.map((p) => ({ path: p, mode: "100644", type: "blob", sha: null })),
   ];
   const treeRes = await gh(ctx, `/repos/${GH_REPO}/git/trees`, {

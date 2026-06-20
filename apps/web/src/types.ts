@@ -9,6 +9,8 @@ export interface ChatMessage {
   reasoning?: string;
   /** Ordered text + tool-call segments (assistant turns); rendered inline. */
   segments?: MessageSegment[];
+  /** Image attachments rendered with the message (data URLs). */
+  images?: string[];
 }
 
 /** The provider configuration chosen in the UI. */

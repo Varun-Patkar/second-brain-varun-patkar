@@ -52,6 +52,19 @@ export function Message({ message, streaming }: { message: ChatMessage; streamin
               : "glass rounded-2xl rounded-bl-md px-4 py-3"
           }
         >
+          {message.images && message.images.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {message.images.map((src, i) => (
+                <a key={i} href={src} target="_blank" rel="noreferrer" className="block">
+                  <img
+                    src={src}
+                    alt="attachment"
+                    className="h-24 w-24 rounded-lg object-cover ring-1 ring-white/15"
+                  />
+                </a>
+              ))}
+            </div>
+          )}
           {isUser ? (
             <p className="whitespace-pre-wrap">{message.content}</p>
           ) : message.segments && message.segments.length > 0 ? (

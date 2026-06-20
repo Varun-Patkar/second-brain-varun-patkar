@@ -55,7 +55,13 @@ function buildAgentInput(
   const parts: ContentPart[] = [
     ...(req.message ? [{ type: "text", text: req.message } as ContentPart] : []),
     ...(hasImages
-      ? req.images!.map((img): ContentPart => ({ type: "image", data: img.data, mimeType: img.mimeType }))
+      ? req.images!.map((img): ContentPart => ({
+          type: "image",
+          // The provider uses `data` verbatim as the image_url; it must be a full
+          // data URL (or http URL), not bare base64, or the vision call stalls.
+          data: img.data.startsWith("data:") ? img.data : `data:${img.mimeType};base64,${img.data}`,
+          mimeType: img.mimeType,
+        }))
       : []),
   ];
   return [...priorMsgs, { role: "user", parts }];
@@ -182,6 +188,7 @@ export async function runTurn(env: Env, req: ChatTurnRequest, emit: Emit): Promi
             trace: traceLog,
             metrics: metricsOf(ctx),
           },
+          req.images,
         );
       } catch (saveErr) {
         emit({

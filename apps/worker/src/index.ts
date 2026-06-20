@@ -19,7 +19,7 @@ import { fetchCopilotModels } from "./providers/copilotModels.js";
 import { testProvider } from "./providers/index.js";
 import { createTurnContext } from "./runtime/context.js";
 import { applyConfigChanges, invalidateBrainConfig, loadBrainConfig } from "./storage/config.js";
-import { listChats, loadChat, deleteChat } from "./storage/chats.js";
+import { listChats, loadChat, loadChatAsset, deleteChat } from "./storage/chats.js";
 import { isTurnRunning } from "./storage/kv.js";
 import { runTurn } from "./turn.js";
 
@@ -156,6 +156,17 @@ export default {
       const ctx = createTurnContext(env, () => {});
       const chats = await listChats(ctx);
       return json({ chats }, { status: 200 }, corsHeaders);
+    }
+
+    // --- Chat image asset (data URL for rendering history) ---
+    if (url.pathname === "/chats/asset" && req.method === "GET") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      const path = url.searchParams.get("path") ?? "";
+      const ctx = createTurnContext(env, () => {});
+      const dataUrl = await loadChatAsset(ctx, path);
+      if (!dataUrl) return json({ error: "not_found" }, { status: 404 }, corsHeaders);
+      return json({ dataUrl }, { status: 200 }, corsHeaders);
     }
 
     // --- Chat history: load one conversation ---
