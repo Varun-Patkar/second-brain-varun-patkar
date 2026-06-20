@@ -1,0 +1,103 @@
+{
+  "id": "d7aaef32-44f1-43a7-9f89-1cfb1f58d777",
+  "title": "Hi. My name is varun. Who are you?",
+  "createdAt": "2026-06-20T08:44:51.957Z",
+  "updatedAt": "2026-06-20T08:44:51.957Z",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hi. My name is varun. Who are you?"
+    },
+    {
+      "role": "assistant",
+      "content": "Hi Varun! I'm your **Second Brain** — a personal knowledge assistant designed to remember things *for you*. Think of me as a living wiki that:\n\n- 📝 **Stores** facts, ideas, projects, people, decisions, and preferences you share with me\n- 🔍 **Retrieves** them accurately when you need them later\n- 🔗 **Connects** related pieces of knowledge so nothing gets lost\n\nThe more you tell me, the more useful I become. You can ask me to remember anything, or just chat — I'll judge what's worth keeping and organize it automatically.\n\nLet me save your name now!I've saved your name — nice to meet you, Varun! 👋 What would you like to tell me or ask about?",
+      "segments": [
+        {
+          "type": "tool",
+          "call": {
+            "id": "call_4900a5a311674337902e03996abb41fd",
+            "name": "graph_search",
+            "input": {
+              "query": "Varun user profile",
+              "k": 5
+            },
+            "status": "ok",
+            "output": {
+              "count": 0,
+              "titles": []
+            }
+          }
+        },
+        {
+          "type": "text",
+          "text": "Hi Varun! I'm your **Second Brain** — a personal knowledge assistant designed to remember things *for you*. Think of me as a living wiki that:\n\n- 📝 **Stores** facts, ideas, projects, people, decisions, and preferences you share with me\n- 🔍 **Retrieves** them accurately when you need them later\n- 🔗 **Connects** related pieces of knowledge so nothing gets lost\n\nThe more you tell me, the more useful I become. You can ask me to remember anything, or just chat — I'll judge what's worth keeping and organize it automatically.\n\nLet me save your name now!"
+        },
+        {
+          "type": "tool",
+          "call": {
+            "id": "call_579be9fed19d40bbbad7ba5403c2a735",
+            "name": "write_brain",
+            "input": {
+              "writes": [
+                {
+                  "type": "person",
+                  "title": "Varun (Owner)"
+                }
+              ]
+            },
+            "status": "ok",
+            "output": {
+              "committed": 1,
+              "results": [
+                "created node_3c1c1233d8994e6c9c5753eeb0d13090"
+              ]
+            }
+          }
+        },
+        {
+          "type": "text",
+          "text": "I've saved your name — nice to meet you, Varun! 👋 What would you like to tell me or ask about?"
+        }
+      ],
+      "trace": [
+        {
+          "agent": "brain",
+          "tool": "graph_search",
+          "detail": "{\"count\":0,\"titles\":[]}",
+          "at": "2026-06-20T08:44:37.579Z"
+        },
+        {
+          "agent": "brain",
+          "tool": "write_brain",
+          "detail": "{\"committed\":1,\"results\":[\"created node_3c1c1233d8994e6c9c5753eeb0d13090\"]}",
+          "at": "2026-06-20T08:44:46.649Z"
+        },
+        {
+          "agent": "consolidator",
+          "detail": "consolidating 1 dirty node(s)",
+          "at": "2026-06-20T08:44:49.315Z"
+        },
+        {
+          "agent": "consolidator",
+          "tool": "llm",
+          "detail": "model call (claude-sonnet-4.6)",
+          "at": "2026-06-20T08:44:49.535Z"
+        },
+        {
+          "agent": "consolidator",
+          "detail": "applied 0, deferred 0",
+          "at": "2026-06-20T08:44:51.957Z"
+        }
+      ],
+      "metrics": {
+        "subrequestsUsed": 13,
+        "llmCalls": 1,
+        "gitCalls": 6,
+        "d1Calls": 6,
+        "dirtySetSize": 1,
+        "toolsEnabled": 4,
+        "skillsEnabled": 0
+      }
+    }
+  ]
+}
