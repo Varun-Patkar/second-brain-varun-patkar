@@ -19,9 +19,11 @@ import {
   FolderOpen,
   Loader2,
   Brain,
+  Lock,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import { getBrainFile, getBrainTree } from "../api.js";
 
 /** A node in the file tree built from flat paths. */
@@ -193,6 +195,23 @@ function FolderRow({
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(Boolean(defaultOpen));
+
+  // The chats folder is browsed/edited live in the chat-history drawer, not here.
+  const locked = node.path === "chats";
+  if (locked) {
+    return (
+      <div
+        title="Please refer to chat history to view and interact live."
+        className="flex w-full cursor-not-allowed items-center gap-1.5 rounded-lg border border-dashed border-white/15 px-1.5 py-1 text-sm text-slate-500"
+        style={{ marginLeft: `${depth * 12}px` }}
+      >
+        <Lock className="ml-1 h-3.5 w-3.5 shrink-0 text-slate-600" />
+        <Folder className="h-4 w-4 shrink-0 text-slate-600" />
+        <span className="truncate">{node.name}</span>
+      </div>
+    );
+  }
+
   return (
     <div>
       <button
@@ -281,7 +300,7 @@ function FileContent({ path, content }: { path: string; content: string }) {
           </div>
         )}
         <div className="prose-brain">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{body}</ReactMarkdown>
         </div>
       </motion.div>
     );
