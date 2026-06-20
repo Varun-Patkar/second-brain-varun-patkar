@@ -1,18 +1,24 @@
 /** Top bar: branding, session avatar, sign-out. */
 
 import { motion } from "framer-motion";
-import { Brain, LogOut, SlidersHorizontal } from "lucide-react";
+import { Brain, LogOut, SlidersHorizontal, History, SquarePen } from "lucide-react";
 import type { SessionInfo } from "@second-brain/shared";
 
 export function TopBar({
   session,
   onSignOut,
   onOpenSettings,
+  onOpenHistory,
+  onNewChat,
 }: {
   session: SessionInfo;
   onSignOut: () => void;
   /** Open the mobile settings/activity sheet. Only rendered on small screens. */
   onOpenSettings?: () => void;
+  /** Open the chat-history drawer. */
+  onOpenHistory?: () => void;
+  /** Start a new, empty conversation. */
+  onNewChat?: () => void;
 }) {
   return (
     <header className="glass sticky top-0 z-20 flex items-center justify-between rounded-2xl px-4 py-2.5">
@@ -30,6 +36,24 @@ export function TopBar({
       </div>
 
       <div className="flex items-center gap-3">
+        {onOpenHistory && (
+          <button
+            onClick={onOpenHistory}
+            className="grid h-9 w-9 place-items-center rounded-xl bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
+            title="Chat history"
+          >
+            <History className="h-4.5 w-4.5" />
+          </button>
+        )}
+        {onNewChat && (
+          <button
+            onClick={onNewChat}
+            className="grid h-9 w-9 place-items-center rounded-xl bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
+            title="New chat"
+          >
+            <SquarePen className="h-4.5 w-4.5" />
+          </button>
+        )}
         <div className="flex items-center gap-2 rounded-full bg-white/5 py-1 pl-1 pr-3">
           <img src={session.avatarUrl} alt={session.login} className="h-7 w-7 rounded-full" />
           <span className="text-sm text-slate-300">{session.login}</span>

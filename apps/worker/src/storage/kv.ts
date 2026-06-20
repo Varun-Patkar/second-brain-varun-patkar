@@ -27,3 +27,24 @@ export async function putCachedDoc(ctx: TurnContext, doc: NodeDocument): Promise
 export async function invalidateDoc(ctx: TurnContext, id: string): Promise<void> {
   await ctx.env.CACHE.delete(`${DOC_PREFIX}${id}`);
 }
+
+const TURN_PREFIX = "turn:";
+
+/**
+ * Mark whether a turn is currently running for a chat, so a client that refreshes
+ * mid-turn can tell (on reconnect) to wait for completion vs. load from history.
+ * Entries auto-expire so a crashed turn never sticks as "running" forever.
+ */
+export async function setTurnRunning(ctx: TurnContext, chatId: string, running: boolean): Promise<void> {
+  const key = `${TURN_PREFIX}${chatId}`;
+  if (running) {
+    await ctx.env.CACHE.put(key, "1", { expirationTtl: 300 });
+  } else {
+    await ctx.env.CACHE.delete(key);
+  }
+}
+
+/** True if a turn is currently running for the given chat. */
+export async function isTurnRunning(ctx: TurnContext, chatId: string): Promise<boolean> {
+  return (await ctx.env.CACHE.get(`${TURN_PREFIX}${chatId}`)) != null;
+}

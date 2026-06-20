@@ -19,6 +19,8 @@ import { fetchCopilotModels } from "./providers/copilotModels.js";
 import { testProvider } from "./providers/index.js";
 import { createTurnContext } from "./runtime/context.js";
 import { applyConfigChanges, invalidateBrainConfig, loadBrainConfig } from "./storage/config.js";
+import { listChats, loadChat } from "./storage/chats.js";
+import { isTurnRunning } from "./storage/kv.js";
 import { runTurn } from "./turn.js";
 
 /** Build CORS headers, allowing the configured Pages origin and localhost dev. */
@@ -51,7 +53,7 @@ async function authed(env: Env, req: Request) {
 }
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, exec: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
     const origin = req.headers.get("Origin");
     const corsHeaders = cors(env, origin);
@@ -147,29 +149,65 @@ export default {
       }
     }
 
+    // --- Chat history: list summaries ---
+    if (url.pathname === "/chats" && req.method === "GET") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      const ctx = createTurnContext(env, () => {});
+      const chats = await listChats(ctx);
+      return json({ chats }, { status: 200 }, corsHeaders);
+    }
+
+    // --- Chat history: load one conversation ---
+    if (url.pathname.startsWith("/chats/") && req.method === "GET") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      const id = decodeURIComponent(url.pathname.slice("/chats/".length));
+      const ctx = createTurnContext(env, () => {});
+      const record = await loadChat(ctx, id);
+      if (!record) return json({ error: "not_found" }, { status: 404 }, corsHeaders);
+      return json(record, { status: 200 }, corsHeaders);
+    }
+
+    // --- Turn status (is a turn still running for this chat?) ---
+    if (url.pathname === "/chat/status" && req.method === "GET") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      const chatId = url.searchParams.get("chatId") ?? "";
+      const ctx = createTurnContext(env, () => {});
+      const running = chatId ? await isTurnRunning(ctx, chatId) : false;
+      return json({ running }, { status: 200 }, corsHeaders);
+    }
+
     // --- Chat (SSE) ---
     if (url.pathname === "/chat" && req.method === "POST") {
       const session = await authed(env, req);
       if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
 
       const body = (await req.json().catch(() => null)) as ChatTurnRequest | null;
-      if (!body?.message || !body.provider) {
+      if (!body?.provider || (!body.message && !(body.images?.length))) {
         return json({ error: "invalid_request" }, { status: 400 }, corsHeaders);
       }
 
       const { readable, writable } = new TransformStream();
       const writer = writable.getWriter();
       const encoder = new TextEncoder();
+      // Guard writes: once the client refreshes/disconnects the stream closes, but
+      // the turn keeps running (below, via waitUntil) so it still completes + saves.
       const emit = (event: TurnStreamEvent): void => {
-        void writer.write(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        void writer.write(encoder.encode(`data: ${JSON.stringify(event)}\n\n`)).catch(() => {});
       };
 
-      // Run the turn and close the stream when finished.
-      void runTurn(env, body, emit)
-        .catch((err: unknown) => {
-          emit({ type: "error", code: "fatal", message: err instanceof Error ? err.message : "unknown" });
-        })
-        .finally(() => void writer.close());
+      // Run the turn to completion even if the client disconnects. The turn marks
+      // itself running in KV and persists to chat history when done, so a refreshed
+      // client can reconnect and either resume-by-status or load the saved result.
+      exec.waitUntil(
+        runTurn(env, body, emit)
+          .catch((err: unknown) => {
+            emit({ type: "error", code: "fatal", message: err instanceof Error ? err.message : "unknown" });
+          })
+          .finally(() => void writer.close().catch(() => {})),
+      );
 
       return new Response(readable, {
         status: 200,

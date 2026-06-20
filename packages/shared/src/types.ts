@@ -164,6 +164,8 @@ export interface ChatTurnRequest {
    * advertise vision support.
    */
   images?: ChatImage[];
+  /** Conversation id; the turn is appended to this chat's history on the brain. */
+  chatId?: string;
   /** Resume token from a previous partial turn (budget checkpoint). */
   resumeToken?: string;
 }
@@ -183,6 +185,10 @@ export interface TurnMetrics {
   gitCalls: number;
   d1Calls: number;
   dirtySetSize: number;
+  /** Number of tools available to the brain this turn (core + MCP). */
+  toolsEnabled?: number;
+  /** Number of skills loaded for the brain this turn. */
+  skillsEnabled?: number;
 }
 
 /** One step in the agent trace shown in the UI. */
@@ -269,4 +275,47 @@ export interface BrainConfigUpdate {
 export interface BrainConfigUpdateResult {
   commitSha: string;
   changed: string[];
+}
+
+/* ------------------------------------------------------------------ */
+/* Chat history (stored on the brain branch, not indexed in D1/FTS)    */
+/* ------------------------------------------------------------------ */
+
+/** A stored chat message, including the agent trace + metrics for assistant turns. */
+export interface StoredChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  /** Reasoning/thinking text for assistant turns (if the model emitted any). */
+  reasoning?: string;
+  /** Agent activity (tool calls with inputs/outputs) for the assistant turn. */
+  trace?: TraceEvent[];
+  /** Per-turn metrics for the assistant turn. */
+  metrics?: TurnMetrics;
+}
+
+/** A full stored conversation on the brain branch (`chats/<id>.json`). */
+export interface ChatRecord {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: StoredChatMessage[];
+}
+
+/** A lightweight chat summary for the history list (`chats/index.json`). */
+export interface ChatSummary {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Response of `GET /chats`. */
+export interface ChatListResponse {
+  chats: ChatSummary[];
+}
+
+/** Response of `GET /chat/status?chatId=…` — whether a turn is still running. */
+export interface TurnStatusResponse {
+  running: boolean;
 }

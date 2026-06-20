@@ -76,12 +76,15 @@ export function createBrainAgent(
       sources: [{ kind: "inline", content: s.content }],
     }),
   );
+  const tools = [...createBrainTools(ctx), ...(options.extraTools ?? [])];
+  // Record how many tools/skills are active so the UI can surface the counts.
+  ctx.counts = { tools: tools.length, skills: skills.length };
   return createAgent({
     name: "brain",
     instructions: BRAIN_INSTRUCTIONS,
     provider,
     ...(model ? { model } : {}),
-    tools: [...createBrainTools(ctx), ...(options.extraTools ?? [])],
+    tools,
     ...(skills.length > 0 ? { skills } : {}),
     maxIterations: 6,
     middleware: [budgetMiddleware(ctx, "brain")],

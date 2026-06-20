@@ -29,7 +29,6 @@ export function createReadMarkdownTool(ctx: TurnContext) {
       required: ["ids"],
     },
     run: async ({ ids }) => {
-      ctx.emitTrace({ agent: "brain", tool: "read_markdown", detail: ids.join(", ") });
       const documents: NodeDocument[] = [];
       const misses: string[] = [];
 
@@ -52,6 +51,11 @@ export function createReadMarkdownTool(ctx: TurnContext) {
       }
 
       if (documents.length > 0) await bumpAccess(ctx, documents.map((d) => d.id), "read");
+      ctx.emitTrace({
+        agent: "brain",
+        tool: "read_markdown",
+        detail: `${ids.length} id(s) → ${documents.length} doc(s)`,
+      });
       return { documents };
     },
   });

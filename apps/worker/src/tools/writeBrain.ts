@@ -50,8 +50,9 @@ export function createWriteBrainTool(ctx: TurnContext) {
       required: ["writes"],
     },
     run: async ({ writes }) => {
-      ctx.emitTrace({ agent: "brain", tool: "write_brain", detail: `${writes.length} write(s)` });
-      return persistWrites(ctx, writes);
+      const result = await persistWrites(ctx, writes);
+      ctx.emitTrace({ agent: "brain", tool: "write_brain", detail: `${writes.length} node(s) → committed` });
+      return result;
     },
   });
 }

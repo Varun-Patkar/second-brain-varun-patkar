@@ -22,6 +22,8 @@ export interface TurnContext {
   /** Emit a trace event to the frontend (best-effort; never throws). */
   emitTrace: (event: Omit<TraceEvent, "at">) => void;
   dirty: DirtyState;
+  /** How many tools / skills are active this turn (surfaced in metrics). */
+  counts: { tools: number; skills: number };
 }
 
 /** Create a fresh turn context. */
@@ -34,6 +36,7 @@ export function createTurnContext(
     budget: new Budget(),
     emitTrace,
     dirty: { value: false, nodes: new Set<string>() },
+    counts: { tools: 0, skills: 0 },
   };
 }
 

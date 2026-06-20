@@ -9,10 +9,13 @@ import type {
   BrainConfigDto,
   BrainConfigUpdate,
   BrainConfigUpdateResult,
+  ChatListResponse,
+  ChatRecord,
   ChatTurnRequest,
   ModelsResponse,
   ProviderTestResult,
   SessionInfo,
+  TurnStatusResponse,
   TurnStreamEvent,
 } from "@second-brain/shared";
 
@@ -156,6 +159,37 @@ export async function saveConfig(update: BrainConfigUpdate): Promise<BrainConfig
   const data = (await res.json().catch(() => ({}))) as BrainConfigUpdateResult & { error?: string };
   if (!res.ok) throw new Error(data.error ?? `Failed to save config: HTTP ${res.status}`);
   return data;
+}
+
+/** List stored chat summaries (most recent first). */
+export async function listChats(): Promise<ChatListResponse> {
+  try {
+    const res = await fetch(`${WORKER_URL}/chats`, { headers: authHeaders() });
+    if (!res.ok) return { chats: [] };
+    return (await res.json()) as ChatListResponse;
+  } catch {
+    return { chats: [] };
+  }
+}
+
+/** Load a stored conversation by id, or null if it doesn't exist. */
+export async function getChat(id: string): Promise<ChatRecord | null> {
+  const res = await fetch(`${WORKER_URL}/chats/${encodeURIComponent(id)}`, { headers: authHeaders() });
+  if (!res.ok) return null;
+  return (await res.json()) as ChatRecord;
+}
+
+/** Whether a turn is still running server-side for the given chat. */
+export async function getTurnStatus(chatId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${WORKER_URL}/chat/status?chatId=${encodeURIComponent(chatId)}`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) return false;
+    return ((await res.json()) as TurnStatusResponse).running;
+  } catch {
+    return false;
+  }
 }
 
 /**

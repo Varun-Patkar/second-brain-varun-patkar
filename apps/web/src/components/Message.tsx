@@ -9,7 +9,10 @@ import type { ChatMessage } from "../types.js";
 
 export function Message({ message, streaming }: { message: ChatMessage; streaming: boolean }) {
   const isUser = message.role === "user";
+  // Reasoning auto-expands while the model is still thinking (no answer yet).
+  const thinking = streaming && !isUser && !message.content;
   const [showReasoning, setShowReasoning] = useState(false);
+  const reasoningOpen = showReasoning || (thinking && Boolean(message.reasoning));
 
   return (
     <motion.div
@@ -25,11 +28,11 @@ export function Message({ message, streaming }: { message: ChatMessage; streamin
               onClick={() => setShowReasoning((v) => !v)}
               className="inline-flex items-center gap-1 rounded-full bg-glow-600/15 px-2.5 py-1 text-[0.7rem] text-glow-400 transition hover:bg-glow-600/25"
             >
-              <Sparkles className="h-3 w-3" />
-              reasoning
-              <ChevronDown className={`h-3 w-3 transition ${showReasoning ? "rotate-180" : ""}`} />
+              <Sparkles className={`h-3 w-3 ${thinking ? "animate-pulse" : ""}`} />
+              {thinking ? "thinking" : "reasoning"}
+              <ChevronDown className={`h-3 w-3 transition ${reasoningOpen ? "rotate-180" : ""}`} />
             </button>
-            {showReasoning && (
+            {reasoningOpen && (
               <motion.pre
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
@@ -55,12 +58,31 @@ export function Message({ message, streaming }: { message: ChatMessage; streamin
               {message.content ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
               ) : streaming ? (
-                <span className="caret text-slate-500">thinking</span>
+                <ThinkingDots />
               ) : null}
             </div>
           )}
         </div>
       </div>
     </motion.div>
+  );
+}
+
+/** Animated "Thinking…" indicator shown while the assistant has no answer yet. */
+function ThinkingDots() {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-sm text-slate-400">
+      Thinking
+      <span className="inline-flex gap-1">
+        {[0, 1, 2].map((i) => (
+          <motion.span
+            key={i}
+            className="inline-block h-1.5 w-1.5 rounded-full bg-glow-400"
+            animate={{ opacity: [0.2, 1, 0.2], y: [0, -2, 0] }}
+            transition={{ duration: 1, repeat: Infinity, delay: i * 0.18 }}
+          />
+        ))}
+      </span>
+    </span>
   );
 }

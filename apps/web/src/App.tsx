@@ -22,6 +22,7 @@ import { Trace } from "./components/Trace.js";
 import { Composer } from "./components/Composer.js";
 import { MobileSettings } from "./components/MobileSettings.js";
 import { ConfigManager } from "./components/ConfigManager.js";
+import { HistoryDrawer } from "./components/HistoryDrawer.js";
 
 type AuthState = "loading" | "anon" | "authed";
 
@@ -35,6 +36,8 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Controls the MCP/skills management modal.
   const [configOpen, setConfigOpen] = useState(false);
+  // Controls the chat-history drawer.
+  const [historyOpen, setHistoryOpen] = useState(false);
   const chat = useChat();
   const { conn, test } = useProviderConnection(cfg, auth === "authed");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -77,6 +80,12 @@ export function App() {
     if (auth === "authed") void getModels().then((r) => setModels(r.models.map((m) => m.id)));
   }, [auth]);
 
+  // On login, resume an in-flight turn if the page was refreshed mid-turn.
+  useEffect(() => {
+    if (auth === "authed") void chat.resumeActive();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth]);
+
   const signOut = () => {
     clearToken();
     setSession(null);
@@ -95,7 +104,13 @@ export function App() {
 
   return (
     <div className="mx-auto flex h-full w-[90vw] flex-col gap-3 p-3 md:p-4">
-      <TopBar session={session} onSignOut={signOut} onOpenSettings={() => setSettingsOpen(true)} />
+      <TopBar
+        session={session}
+        onSignOut={signOut}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenHistory={() => setHistoryOpen(true)}
+        onNewChat={chat.newChat}
+      />
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[1fr_360px]">
         {/* Chat column */}
@@ -112,6 +127,17 @@ export function App() {
           </div>
 
           <AnimatePresence>
+            {chat.resuming && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="flex items-center gap-2 rounded-xl border border-glow-500/30 bg-glow-500/10 px-3 py-2 text-sm text-glow-300"
+              >
+                <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-glow-400/40 border-t-glow-300" />
+                Resuming your turn — it's still running on the server…
+              </motion.div>
+            )}
             {chat.error && (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
@@ -172,6 +198,15 @@ export function App() {
 
       {/* MCP + skills management modal. */}
       <ConfigManager open={configOpen} onClose={() => setConfigOpen(false)} />
+
+      {/* Chat history drawer. */}
+      <HistoryDrawer
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onSelect={(id) => void chat.openChat(id)}
+        onNewChat={chat.newChat}
+        currentChatId={chat.chatId}
+      />
     </div>
   );
 }

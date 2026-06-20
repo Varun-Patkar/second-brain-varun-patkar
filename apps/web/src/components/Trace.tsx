@@ -1,7 +1,7 @@
 /** Live agent trace + per-turn metrics panel. */
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Activity, GitCommit, Database, Cpu } from "lucide-react";
+import { Activity, GitCommit, Database, Cpu, Wrench, BookOpen } from "lucide-react";
 import type { TraceEvent, TurnMetrics } from "@second-brain/shared";
 
 export function Trace({ trace, metrics }: { trace: TraceEvent[]; metrics: TurnMetrics | null }) {
@@ -44,6 +44,12 @@ export function Trace({ trace, metrics }: { trace: TraceEvent[]; metrics: TurnMe
           <Metric icon={<Cpu className="h-3 w-3" />} label="llm" value={metrics.llmCalls} />
           <Metric icon={<GitCommit className="h-3 w-3" />} label="git" value={metrics.gitCalls} />
           <Metric icon={<Database className="h-3 w-3" />} label="d1" value={metrics.d1Calls} />
+          {metrics.toolsEnabled != null && (
+            <Metric icon={<Wrench className="h-3 w-3" />} label="tools" value={metrics.toolsEnabled} />
+          )}
+          {metrics.skillsEnabled != null && (
+            <Metric icon={<BookOpen className="h-3 w-3" />} label="skills" value={metrics.skillsEnabled} />
+          )}
         </div>
       )}
     </div>
