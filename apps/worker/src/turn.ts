@@ -9,6 +9,7 @@
 import type {
   ChatRecord,
   ChatTurnRequest,
+  MessageSegment,
   StoredChatMessage,
   TraceEvent,
   TurnMetrics,
@@ -91,6 +92,19 @@ export async function runTurn(env: Env, req: ChatTurnRequest, emit: Emit): Promi
   const chatId = req.chatId;
   let answer = "";
   let reasoning = "";
+  // Ordered text + tool-call segments, for inline rendering and persistence.
+  const segments: MessageSegment[] = [];
+  const pushText = (t: string): void => {
+    const last = segments[segments.length - 1];
+    if (last && last.type === "text") last.text += t;
+    else segments.push({ type: "text", text: t });
+  };
+  ctx.emitTool = (call) => {
+    const idx = segments.findIndex((s) => s.type === "tool" && s.call.id === call.id);
+    if (idx >= 0) segments[idx] = { type: "tool", call };
+    else segments.push({ type: "tool", call });
+    emit({ type: "tool", call });
+  };
 
   // Mark the turn running so a client that refreshes can detect it on reconnect.
   if (chatId) await setTurnRunning(ctx, chatId, true).catch(() => {});
@@ -120,6 +134,7 @@ export async function runTurn(env: Env, req: ChatTurnRequest, emit: Emit): Promi
       for await (const chunk of brain.runStream(buildAgentInput(req, supportsVision, record?.messages ?? []))) {
         if (chunk.type === "text") {
           answer += chunk.text;
+          pushText(chunk.text);
           emit({ type: "text", text: chunk.text });
         } else if (chunk.type === "reasoning") {
           reasoning += chunk.text;
@@ -163,6 +178,7 @@ export async function runTurn(env: Env, req: ChatTurnRequest, emit: Emit): Promi
             role: "assistant",
             content: answer,
             ...(reasoning ? { reasoning } : {}),
+            ...(segments.length > 0 ? { segments } : {}),
             trace: traceLog,
             metrics: metricsOf(ctx),
           },

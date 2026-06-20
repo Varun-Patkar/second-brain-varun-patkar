@@ -1,12 +1,14 @@
 /** Local UI types for the chat frontend. */
 
-import type { ProviderChoice } from "@second-brain/shared";
+import type { MessageSegment, ProviderChoice } from "@second-brain/shared";
 
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   reasoning?: string;
+  /** Ordered text + tool-call segments (assistant turns); rendered inline. */
+  segments?: MessageSegment[];
 }
 
 /** The provider configuration chosen in the UI. */

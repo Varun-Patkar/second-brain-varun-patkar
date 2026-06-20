@@ -203,11 +203,33 @@ export interface TraceEvent {
 export type TurnStreamEvent =
   | { type: "text"; text: string }
   | { type: "reasoning"; text: string }
+  | { type: "tool"; call: ToolCall }
   | { type: "trace"; event: TraceEvent }
   | { type: "metrics"; metrics: TurnMetrics }
   | { type: "partial"; resumeToken: string; metrics: TurnMetrics }
   | { type: "error"; code: string; message: string }
   | { type: "done"; metrics: TurnMetrics };
+
+/** A single tool invocation, streamed live and rendered as an expandable card. */
+export interface ToolCall {
+  /** Stable id; a "running" event is followed by an "ok"/"error" update. */
+  id: string;
+  /** Tool name (e.g. graph_search, write_brain). */
+  name: string;
+  /** Arguments the model passed to the tool. */
+  input?: unknown;
+  status: "running" | "ok" | "error";
+  /** Result summary on success, or the error message on failure. */
+  output?: unknown;
+}
+
+/**
+ * An ordered piece of an assistant message: either a run of text or a tool call.
+ * Lets the UI render tool cards inline between text, like Copilot.
+ */
+export type MessageSegment =
+  | { type: "text"; text: string }
+  | { type: "tool"; call: ToolCall };
 
 /** The authenticated owner session returned after GitHub OAuth. */
 export interface SessionInfo {
@@ -287,6 +309,8 @@ export interface StoredChatMessage {
   content: string;
   /** Reasoning/thinking text for assistant turns (if the model emitted any). */
   reasoning?: string;
+  /** Ordered text + tool-call segments for assistant turns (inline rendering). */
+  segments?: MessageSegment[];
   /** Agent activity (tool calls with inputs/outputs) for the assistant turn. */
   trace?: TraceEvent[];
   /** Per-turn metrics for the assistant turn. */

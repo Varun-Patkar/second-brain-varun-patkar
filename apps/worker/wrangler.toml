@@ -4,6 +4,12 @@ main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
+# Replace Ajv (the framework's tool-argument validator) with an interpreter-based
+# shim. Ajv compiles schemas via `new Function`, which the Workers runtime forbids,
+# so without this every tool call fails with "Code generation from strings disallowed".
+[alias]
+"ajv" = "./src/ajv-shim.ts"
+
 # --- Non-secret vars (safe to commit). Secrets are set via `wrangler secret put`. ---
 [vars]
 # GitHub repo that holds the wiki, "owner/repo".

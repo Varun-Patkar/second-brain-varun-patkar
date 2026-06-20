@@ -169,6 +169,7 @@ export function Composer({
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
+          disabled={streaming}
           onPaste={(e) => {
             if (visionEnabled && e.clipboardData.files.length > 0) {
               void addFiles(e.clipboardData.files);
@@ -182,13 +183,15 @@ export function Composer({
           }}
           rows={1}
           placeholder={
-            !connected
-              ? "Test your provider connection in settings to start chatting…"
-              : voice.state === "recording"
-                ? "Listening… tap the square to transcribe"
-                : "Ask, or dump knowledge into your brain…"
+            streaming
+              ? "Working on it… use the stop button to interrupt"
+              : !connected
+                ? "Test your provider connection in settings to start chatting…"
+                : voice.state === "recording"
+                  ? "Listening… tap the square to transcribe"
+                  : "Ask, or dump knowledge into your brain…"
           }
-          className="max-h-40 flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-slate-200 outline-none placeholder:text-slate-600"
+          className="max-h-40 flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-slate-200 outline-none placeholder:text-slate-600 disabled:opacity-60"
         />
 
         {streaming ? (

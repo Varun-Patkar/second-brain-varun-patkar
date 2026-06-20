@@ -9,6 +9,7 @@
 
 import { defineTool } from "agent-framework-js/tools";
 import type { TurnContext } from "../runtime/context.js";
+import { tracedTool } from "../runtime/toolTrace.js";
 import { applyConfigChanges, type McpServerConfig } from "../storage/config.js";
 
 interface WriteConfigArgs {
@@ -64,24 +65,22 @@ export function createWriteConfigTool(ctx: TurnContext) {
       },
     },
     run: async ({ mcpServers, upsertSkills, deleteSkills }) => {
-      try {
-        const result = await applyConfigChanges(ctx, {
+      return tracedTool(
+        ctx,
+        "write_config",
+        {
           ...(mcpServers ? { mcpServers } : {}),
-          ...(upsertSkills ? { upsertSkills } : {}),
+          ...(upsertSkills ? { upsertSkills: upsertSkills.map((s) => s.name) } : {}),
           ...(deleteSkills ? { deleteSkills } : {}),
-        });
-        if (result.changed.length > 0) {
-          ctx.emitTrace({ agent: "brain", tool: "write_config", detail: `${result.changed.length} change(s)` });
-        }
-        return result;
-      } catch (err) {
-        ctx.emitTrace({
-          agent: "brain",
-          tool: "write_config",
-          detail: `error: ${err instanceof Error ? err.message : String(err)}`,
-        });
-        throw err;
-      }
+        },
+        () =>
+          applyConfigChanges(ctx, {
+            ...(mcpServers ? { mcpServers } : {}),
+            ...(upsertSkills ? { upsertSkills } : {}),
+            ...(deleteSkills ? { deleteSkills } : {}),
+          }),
+        (r) => ({ changed: r.changed }),
+      );
     },
   });
 }

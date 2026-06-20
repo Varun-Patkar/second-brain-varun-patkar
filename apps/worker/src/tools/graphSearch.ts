@@ -8,6 +8,7 @@
 import { defineTool } from "agent-framework-js/tools";
 import type { NodeType, SearchResult } from "@second-brain/shared";
 import type { TurnContext } from "../runtime/context.js";
+import { tracedTool } from "../runtime/toolTrace.js";
 import { search } from "../storage/d1.js";
 
 interface SearchArgs {
@@ -35,18 +36,16 @@ export function createGraphSearchTool(ctx: TurnContext) {
       required: ["query"],
     },
     run: async ({ query, k, types }) => {
-      try {
-        const results = await search(ctx, query, k ?? 5, types as NodeType[] | undefined);
-        ctx.emitTrace({ agent: "brain", tool: "graph_search", detail: `“${query}” → ${results.length} result(s)` });
-        return { results };
-      } catch (err) {
-        ctx.emitTrace({
-          agent: "brain",
-          tool: "graph_search",
-          detail: `“${query}” → error: ${err instanceof Error ? err.message : String(err)}`,
-        });
-        throw err;
-      }
+      return tracedTool(
+        ctx,
+        "graph_search",
+        { query, k: k ?? 5, ...(types ? { types } : {}) },
+        async () => ({ results: await search(ctx, query, k ?? 5, types as NodeType[] | undefined) }),
+        (r) => ({
+          count: r.results.length,
+          titles: r.results.slice(0, 5).map((x) => x.title),
+        }),
+      );
     },
   });
 }

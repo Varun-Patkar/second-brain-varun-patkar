@@ -9,6 +9,7 @@
 import { defineTool } from "agent-framework-js/tools";
 import type { BrainWrite, WriteResult } from "@second-brain/shared";
 import type { TurnContext } from "../runtime/context.js";
+import { tracedTool } from "../runtime/toolTrace.js";
 import { persistWrites } from "../storage/writes.js";
 
 interface WriteArgs {
@@ -50,18 +51,13 @@ export function createWriteBrainTool(ctx: TurnContext) {
       required: ["writes"],
     },
     run: async ({ writes }) => {
-      try {
-        const result = await persistWrites(ctx, writes);
-        ctx.emitTrace({ agent: "brain", tool: "write_brain", detail: `${writes.length} node(s) → committed` });
-        return result;
-      } catch (err) {
-        ctx.emitTrace({
-          agent: "brain",
-          tool: "write_brain",
-          detail: `${writes.length} node(s) → error: ${err instanceof Error ? err.message : String(err)}`,
-        });
-        throw err;
-      }
+      return tracedTool(
+        ctx,
+        "write_brain",
+        { writes: writes.map((w) => ({ type: w.type, title: w.title })) },
+        () => persistWrites(ctx, writes),
+        (r) => ({ committed: r.results.length, results: r.results.map((x) => `${x.action} ${x.id}`) }),
+      );
     },
   });
 }

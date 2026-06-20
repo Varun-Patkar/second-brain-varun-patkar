@@ -52,6 +52,13 @@ BUDGET
 - You have a strict subrequest budget. Prefer one good search over many reads. Stop as soon as you
   can answer; do not over-explore.
 
+COMPLETE THE TASK
+- Carry the task through to completion in THIS turn. If you intend to save something, actually call
+  write_brain before you finish — do not say you'll save it and then stop.
+- If a tool returns an error, read it, then retry sensibly or adjust; only if it still fails should
+  you tell the user the specific error. Never end by asking the user to "try again" for something you
+  can do yourself.
+
 Answer the user concisely. Ground every factual claim in the brain, and confirm anything you saved.`;
 
 /** Options for the brain agent: extra (MCP) tools and brain-defined skills. */
@@ -86,7 +93,7 @@ export function createBrainAgent(
     ...(model ? { model } : {}),
     tools,
     ...(skills.length > 0 ? { skills } : {}),
-    maxIterations: 6,
+    maxIterations: 10,
     middleware: [budgetMiddleware(ctx, "brain")],
   });
 }

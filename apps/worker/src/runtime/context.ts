@@ -6,7 +6,7 @@
  * @packageDocumentation
  */
 
-import type { TraceEvent } from "@second-brain/shared";
+import type { ToolCall, TraceEvent } from "@second-brain/shared";
 import type { Env } from "../env.js";
 import { Budget } from "./budget.js";
 
@@ -21,6 +21,8 @@ export interface TurnContext {
   budget: Budget;
   /** Emit a trace event to the frontend (best-effort; never throws). */
   emitTrace: (event: Omit<TraceEvent, "at">) => void;
+  /** Emit a structured tool-call event (start/result) for inline rendering. */
+  emitTool?: (call: ToolCall) => void;
   dirty: DirtyState;
   /** How many tools / skills are active this turn (surfaced in metrics). */
   counts: { tools: number; skills: number };

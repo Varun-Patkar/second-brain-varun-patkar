@@ -6,7 +6,14 @@
  */
 
 import { useCallback, useRef, useState } from "react";
-import type { ChatImage, ChatTurnRequest, TraceEvent, TurnMetrics } from "@second-brain/shared";
+import type {
+  ChatImage,
+  ChatTurnRequest,
+  MessageSegment,
+  ToolCall,
+  TraceEvent,
+  TurnMetrics,
+} from "@second-brain/shared";
 import { getChat, getTurnStatus, streamChat } from "../api.js";
 import type { ChatMessage, ProviderConfig } from "../types.js";
 
@@ -15,6 +22,24 @@ const nextId = (): string => `m${Date.now()}_${idCounter++}`;
 
 /** localStorage key holding the chat id of an in-flight turn (for refresh-resume). */
 const ACTIVE_KEY = "sb.activeTurn";
+
+/** Append a run of text to a message's ordered segments (merging adjacent text). */
+function appendTextSegment(segments: MessageSegment[] | undefined, text: string): MessageSegment[] {
+  const next = segments ? [...segments] : [];
+  const last = next[next.length - 1];
+  if (last && last.type === "text") next[next.length - 1] = { type: "text", text: last.text + text };
+  else next.push({ type: "text", text });
+  return next;
+}
+
+/** Insert or update a tool-call segment by its id (status updates in place). */
+function upsertToolSegment(segments: MessageSegment[] | undefined, call: ToolCall): MessageSegment[] {
+  const next = segments ? [...segments] : [];
+  const idx = next.findIndex((s) => s.type === "tool" && s.call.id === call.id);
+  if (idx >= 0) next[idx] = { type: "tool", call };
+  else next.push({ type: "tool", call });
+  return next;
+}
 
 /** Build the wire request from the UI provider config. */
 function buildRequest(
@@ -76,10 +101,17 @@ export function useChat() {
         for await (const ev of streamChat(buildRequest(text, cfg, id, images), ac.signal)) {
           switch (ev.type) {
             case "text":
-              patchAssistant((m) => ({ ...m, content: m.content + ev.text }));
+              patchAssistant((m) => ({
+                ...m,
+                content: m.content + ev.text,
+                segments: appendTextSegment(m.segments, ev.text),
+              }));
               break;
             case "reasoning":
               patchAssistant((m) => ({ ...m, reasoning: (m.reasoning ?? "") + ev.text }));
+              break;
+            case "tool":
+              patchAssistant((m) => ({ ...m, segments: upsertToolSegment(m.segments, ev.call) }));
               break;
             case "trace":
               setTrace((prev) => [...prev, ev.event]);
@@ -136,6 +168,7 @@ export function useChat() {
         role: m.role,
         content: m.content,
         ...(m.reasoning ? { reasoning: m.reasoning } : {}),
+        ...(m.segments ? { segments: m.segments } : {}),
       })),
     );
     const lastAssistant = [...rec.messages].reverse().find((m) => m.role === "assistant");

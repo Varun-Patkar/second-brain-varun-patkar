@@ -6,6 +6,7 @@ import { ChevronDown, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatMessage } from "../types.js";
+import { ToolCallCard } from "./ToolCallCard.js";
 
 export function Message({ message, streaming }: { message: ChatMessage; streaming: boolean }) {
   const isUser = message.role === "user";
@@ -53,6 +54,21 @@ export function Message({ message, streaming }: { message: ChatMessage; streamin
         >
           {isUser ? (
             <p className="whitespace-pre-wrap">{message.content}</p>
+          ) : message.segments && message.segments.length > 0 ? (
+            <div className="prose-brain">
+              {message.segments.map((seg, i) =>
+                seg.type === "tool" ? (
+                  <ToolCallCard key={`t${i}`} call={seg.call} />
+                ) : seg.text ? (
+                  <ReactMarkdown key={`s${i}`} remarkPlugins={[remarkGfm]}>
+                    {seg.text}
+                  </ReactMarkdown>
+                ) : null,
+              )}
+              {streaming && !message.content && message.segments.every((s) => s.type === "tool") && (
+                <ThinkingDots />
+              )}
+            </div>
           ) : (
             <div className={`prose-brain ${streaming && !message.content ? "text-slate-500" : ""}`}>
               {message.content ? (
