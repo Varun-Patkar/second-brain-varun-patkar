@@ -4,7 +4,8 @@ type: task
 title: "Token Counter in Agent Activity Panel"
 summary: "Add a token counter at the top right of agent activity showing current tokens used, model token limit, and estimated compaction point."
 createdAt: 2026-06-21T04:21:55.561Z
-updatedAt: 2026-06-21T04:21:55.561Z
+updatedAt: 2026-06-21T05:11:24.769Z
+status: done
 tags: ["token counter", "agent activity", "ui", "context window", "compaction", "second brain"]
 edges:
   - { to: node_dee4723d1ba64b8b9fafe2d3c7099055, type: relates_to }
