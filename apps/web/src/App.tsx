@@ -226,6 +226,11 @@ export function App() {
           setSettingsOpen(false);
           setConfigOpen(true);
         }}
+        onOpenBrain={() => {
+          setSettingsOpen(false);
+          openBrain();
+        }}
+        {...(repoUrl ? { repoUrl } : {})}
         trace={chat.trace}
         metrics={chat.metrics}
       />

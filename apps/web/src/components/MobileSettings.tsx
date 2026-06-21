@@ -8,7 +8,7 @@
  */
 
 import { AnimatePresence, motion } from "framer-motion";
-import { X } from "lucide-react";
+import { X, FolderTree, Github } from "lucide-react";
 import type { TraceEvent, TurnMetrics } from "@second-brain/shared";
 import type { ProviderConfig } from "../types.js";
 import type { Connection } from "../hooks/useProviderConnection.js";
@@ -38,6 +38,8 @@ export function MobileSettings({
   conn,
   onTest,
   onManageConfig,
+  onOpenBrain,
+  repoUrl,
   trace,
   metrics,
 }: {
@@ -49,6 +51,10 @@ export function MobileSettings({
   conn?: Connection;
   onTest?: () => void;
   onManageConfig?: () => void;
+  /** Open the in-app brain viewer (mobile-only entry point). */
+  onOpenBrain?: () => void;
+  /** GitHub repo URL (mobile-only link). */
+  repoUrl?: string;
   trace: TraceEvent[];
   metrics: TurnMetrics | null;
 }) {
@@ -97,6 +103,31 @@ export function MobileSettings({
             </div>
 
             <div className="min-h-0 flex-1 space-y-3 overflow-auto scroll-thin px-0.5">
+              {/* Brain viewer + GitHub (desktop has these in the top bar). */}
+              {(onOpenBrain || repoUrl) && (
+                <div className="grid grid-cols-2 gap-2">
+                  {onOpenBrain && (
+                    <button
+                      onClick={onOpenBrain}
+                      className="flex items-center justify-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+                    >
+                      <FolderTree className="h-4 w-4" />
+                      Brain viewer
+                    </button>
+                  )}
+                  {repoUrl && (
+                    <a
+                      href={repoUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+                    >
+                      <Github className="h-4 w-4" />
+                      GitHub
+                    </a>
+                  )}
+                </div>
+              )}
               <ProviderPicker
                 cfg={cfg}
                 onChange={onChange}
