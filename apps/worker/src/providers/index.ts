@@ -31,7 +31,7 @@ function copilotModelCaps(id: string): ModelCapabilities {
 export function buildProvider(
   env: Env,
   req: ChatTurnRequest,
-): { provider: Provider; model: string; supportsVision: boolean } {
+): { provider: Provider; model: string; supportsVision: boolean; tokenLimit: number } {
   if (req.provider === "lmstudio") {
     const cfg = req.lmStudio;
     if (!cfg?.baseUrl || !cfg.model) {
@@ -43,7 +43,7 @@ export function buildProvider(
       capabilities: { model: cfg.model, maxInputTokens: 262144, maxOutputTokens: 32000 },
     });
     // LM Studio model capabilities are caller-supplied and unknown here; assume no vision.
-    return { provider, model: cfg.model, supportsVision: false };
+    return { provider, model: cfg.model, supportsVision: false, tokenLimit: 262144 };
   }
 
   // Default: GitHub Copilot. Build a single-model provider from the requested
@@ -56,7 +56,12 @@ export function buildProvider(
     models: [caps],
     defaultModel: model,
   });
-  return { provider, model, supportsVision: caps.supportsVision === true };
+  return {
+    provider,
+    model,
+    supportsVision: caps.supportsVision === true,
+    tokenLimit: caps.maxInputTokens,
+  };
 }
 
 /**

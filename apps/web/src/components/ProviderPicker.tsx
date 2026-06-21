@@ -154,14 +154,14 @@ export function ProviderPicker({
         <ConnStatusLine conn={conn} />
       </div>
 
-      {/* MCP servers + skills management. */}
+      {/* MCP servers + skills + secrets management. */}
       {onManageConfig && (
         <button
           onClick={onManageConfig}
           className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/10"
         >
           <SlidersHorizontal className="h-4 w-4" />
-          Manage MCP &amp; skills
+          Manage config
         </button>
       )}
     </div>

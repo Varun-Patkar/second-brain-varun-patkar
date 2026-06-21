@@ -118,10 +118,16 @@ export function BrainViewer({ onBack }: { onBack: () => void }) {
         </button>
       </header>
 
-      {/* Body: tree + content */}
+      {/* Body: tree + content. On small screens these stack into a master/detail
+          flow — the tree shows until a file is picked, then the content takes over
+          with a "← files" button to return. On lg+ both panes are always visible. */}
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[300px_1fr]">
-        {/* File tree */}
-        <aside className="glass min-h-0 overflow-auto scroll-thin rounded-2xl p-2">
+        {/* File tree (hidden on mobile once a file is open). */}
+        <aside
+          className={`glass min-h-0 overflow-auto scroll-thin rounded-2xl p-2 lg:block ${
+            selected ? "hidden" : "block"
+          }`}
+        >
           {loadingTree ? (
             <div className="grid place-items-center py-10 text-slate-500">
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -133,8 +139,22 @@ export function BrainViewer({ onBack }: { onBack: () => void }) {
           )}
         </aside>
 
-        {/* File content */}
-        <section className="glass min-h-0 overflow-auto scroll-thin rounded-2xl p-4">
+        {/* File content (hidden on mobile until a file is open). */}
+        <section
+          className={`glass min-h-0 flex-col overflow-auto scroll-thin rounded-2xl p-4 lg:flex ${
+            selected ? "flex" : "hidden lg:flex"
+          }`}
+        >
+          {/* Mobile-only: return to the file tree. */}
+          {selected && (
+            <button
+              onClick={() => setSelected(null)}
+              className="mb-3 flex items-center gap-2 self-start rounded-xl bg-white/5 px-3 py-1.5 text-sm text-slate-200 transition hover:bg-white/10 lg:hidden"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Files
+            </button>
+          )}
           {!selected ? (
             <div className="grid h-full place-items-center text-center text-sm text-slate-500">
               Select a file to view its contents.

@@ -78,3 +78,14 @@
 .prose-brain a {
   @apply text-glow-400 underline decoration-glow-400/40 underline-offset-2;
 }
+/* GFM tables: visible column/row demarcation (remark-gfm enables the markup). */
+.prose-brain table {
+  @apply my-2 w-full border-collapse text-sm;
+}
+.prose-brain th,
+.prose-brain td {
+  @apply border border-white/10 px-3 py-1.5 text-left align-top;
+}
+.prose-brain th {
+  @apply bg-white/5 font-semibold text-slate-200;
+}

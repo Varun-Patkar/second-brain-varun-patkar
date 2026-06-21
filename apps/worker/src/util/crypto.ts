@@ -46,3 +46,39 @@ export async function hmacVerify(secret: string, data: string, signature: string
   for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
   return diff === 0;
 }
+
+/** Derive a stable 256-bit AES-GCM key from an arbitrary secret string. */
+async function aesKey(secret: string): Promise<CryptoKey> {
+  const hash = await crypto.subtle.digest("SHA-256", enc.encode(secret));
+  return crypto.subtle.importKey("raw", hash, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+}
+
+/**
+ * Encrypt `plaintext` with AES-256-GCM under a key derived from `secret`. The
+ * random 12-byte IV is prepended to the ciphertext and the whole blob is returned
+ * base64url-encoded, so it round-trips through string storage (e.g. Workers KV).
+ */
+export async function aesEncrypt(secret: string, plaintext: string): Promise<string> {
+  const key = await aesKey(secret);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(plaintext));
+  const blob = new Uint8Array(iv.length + ct.byteLength);
+  blob.set(iv, 0);
+  blob.set(new Uint8Array(ct), iv.length);
+  return b64urlEncode(blob.buffer);
+}
+
+/**
+ * Decrypt a blob produced by {@link aesEncrypt}. Throws if the data is malformed
+ * or the key/secret does not match (GCM authentication failure).
+ */
+export async function aesDecrypt(secret: string, encoded: string): Promise<string> {
+  const padded = encoded.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((encoded.length + 3) % 4);
+  const bin = atob(padded);
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  const iv = bytes.slice(0, 12);
+  const ct = bytes.slice(12);
+  const key = await aesKey(secret);
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+  return dec.decode(pt);
+}

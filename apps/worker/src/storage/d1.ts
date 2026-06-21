@@ -132,6 +132,42 @@ export async function listAllNodes(
   return (res.results ?? []).map((r) => ({ id: r.id, type: r.type, title: r.title, mdPath: r.md_path }));
 }
 
+/**
+ * List all nodes of a given type, INCLUDING archived ones. Used by the tasks page,
+ * which must show done (archived) tasks too — unlike `search()`, which filters
+ * `archived = 0` so done tasks stay out of normal LLM retrieval.
+ */
+export async function listNodesByType(
+  ctx: TurnContext,
+  type: string,
+): Promise<Array<{ id: string; title: string; summary: string; mdPath: string; archived: boolean }>> {
+  ctx.budget.d1();
+  const res = await ctx.env.DB.prepare(
+    "SELECT id, title, summary, md_path, archived FROM nodes WHERE type = ? ORDER BY created_at DESC",
+  )
+    .bind(type)
+    .all<{ id: string; title: string; summary: string; md_path: string; archived: number }>();
+  return (res.results ?? []).map((r) => ({
+    id: r.id,
+    title: r.title,
+    summary: r.summary,
+    mdPath: r.md_path,
+    archived: r.archived === 1,
+  }));
+}
+
+/**
+ * Set a node's `archived` flag (and bump `updated_at`). Archiving a task removes
+ * it from `search()` (and therefore from LLM context) without deleting it, so it
+ * still appears — checked — on the tasks page.
+ */
+export async function setNodeArchived(ctx: TurnContext, id: string, archived: boolean): Promise<void> {
+  ctx.budget.d1();
+  await ctx.env.DB.prepare("UPDATE nodes SET archived = ?, updated_at = ? WHERE id = ?")
+    .bind(archived ? 1 : 0, nowIso(), id)
+    .run();
+}
+
 /** Load full node rows by id. */
 export async function getNodes(ctx: TurnContext, ids: string[]): Promise<BrainNode[]> {
   if (ids.length === 0) return [];

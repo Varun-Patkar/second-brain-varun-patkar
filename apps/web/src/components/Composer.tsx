@@ -2,10 +2,11 @@
 
 import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowUp, Square, Mic, ImagePlus, X, Loader2 } from "lucide-react";
+import { ArrowUp, Square, Mic, ImagePlus, X, Loader2, Sparkles } from "lucide-react";
 import type { ChatImage } from "@second-brain/shared";
 import { fileToChatImage } from "../api.js";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder.js";
+import { filterQuickPrompts, type QuickPrompt } from "../quickPrompts.js";
 
 /** A locally-staged image attachment (preview + wire payload). */
 interface Attachment {
@@ -42,6 +43,26 @@ export function Composer({
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Quick-prompt popover: opened by the button, or implicitly while the input
+  // starts with "/" (which also filters the list by what follows the slash).
+  const [showPrompts, setShowPrompts] = useState(false);
+  const slashQuery = text.startsWith("/") ? text.slice(1) : "";
+  const promptsOpen = showPrompts || text.startsWith("/");
+  const filteredPrompts = promptsOpen ? filterQuickPrompts(slashQuery) : [];
+
+  /** Insert a template's text into the composer and focus it (never sends). */
+  const insertPrompt = (p: QuickPrompt): void => {
+    setText(p.text);
+    setShowPrompts(false);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el) {
+        el.focus();
+        el.setSelectionRange(p.text.length, p.text.length);
+      }
+    });
+  };
 
   const voice = useVoiceRecorder(
     sttUrl,
@@ -88,7 +109,31 @@ export function Composer({
   };
 
   return (
-    <div className="glass rounded-2xl p-2">
+    <div className="glass relative rounded-2xl p-2">
+      {/* Quick-prompt popover (above the input). Selecting a prompt inserts its
+          text into the composer — it never sends automatically. */}
+      <AnimatePresence>
+        {promptsOpen && filteredPrompts.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            className="absolute bottom-full left-0 right-0 z-10 mb-2 max-h-64 overflow-auto scroll-thin rounded-xl border border-white/10 bg-ink-950/95 p-1 shadow-xl backdrop-blur-xl"
+          >
+            {filteredPrompts.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => insertPrompt(p)}
+                className="flex w-full flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left transition hover:bg-white/5"
+              >
+                <span className="text-sm font-medium text-slate-200">{p.label}</span>
+                <span className="w-full truncate text-xs text-slate-500">{p.text}</span>
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Image attachment previews. */}
       <AnimatePresence>
         {attachments.length > 0 && (
@@ -118,6 +163,20 @@ export function Composer({
       </AnimatePresence>
 
       <div className="flex items-end gap-2">
+        {/* Quick prompts: insert a starter template (saves typing on mobile). */}
+        <motion.button
+          whileTap={{ scale: 0.92 }}
+          onClick={() => setShowPrompts((v) => !v)}
+          className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl transition ${
+            promptsOpen
+              ? "bg-glow-500/20 text-glow-300"
+              : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200"
+          }`}
+          title="Quick prompts (or type /)"
+        >
+          <Sparkles className="h-5 w-5" />
+        </motion.button>
+
         {/* Image attach (only for vision-capable models). */}
         {visionEnabled && (
           <>
@@ -168,6 +227,7 @@ export function Composer({
 
         <textarea
           value={text}
+          ref={textareaRef}
           onChange={(e) => setText(e.target.value)}
           disabled={streaming}
           onPaste={(e) => {
@@ -176,6 +236,22 @@ export function Composer({
             }
           }}
           onKeyDown={(e) => {
+            // Escape closes the quick-prompt popover.
+            if (promptsOpen && e.key === "Escape") {
+              setShowPrompts(false);
+              return;
+            }
+            // While typing a "/command", Enter picks the top match (inserts, no send).
+            if (
+              text.startsWith("/") &&
+              filteredPrompts.length > 0 &&
+              e.key === "Enter" &&
+              !e.shiftKey
+            ) {
+              e.preventDefault();
+              insertPrompt(filteredPrompts[0]!);
+              return;
+            }
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               submit();

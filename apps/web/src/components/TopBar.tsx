@@ -1,7 +1,7 @@
 /** Top bar: branding, session avatar, sign-out. */
 
 import { motion } from "framer-motion";
-import { Brain, LogOut, SlidersHorizontal, History, SquarePen, Github, FolderTree } from "lucide-react";
+import { Brain, LogOut, SlidersHorizontal, History, SquarePen, Github, FolderTree, ListTodo } from "lucide-react";
 import type { SessionInfo } from "@second-brain/shared";
 
 export function TopBar({
@@ -11,6 +11,7 @@ export function TopBar({
   onOpenHistory,
   onNewChat,
   onOpenBrain,
+  onOpenTasks,
   repoUrl,
 }: {
   session: SessionInfo;
@@ -23,6 +24,8 @@ export function TopBar({
   onNewChat?: () => void;
   /** Open the in-app brain viewer. */
   onOpenBrain?: () => void;
+  /** Open the tasks page. */
+  onOpenTasks?: () => void;
   /** GitHub repo URL (for the external link button). */
   repoUrl?: string;
 }) {
@@ -62,7 +65,16 @@ export function TopBar({
             <SquarePen className="h-4.5 w-4.5" />
           </button>
         )}
-        {/* Brain viewer + GitHub: desktop only; on mobile they live in the settings sheet. */}
+        {/* Brain viewer + Tasks + GitHub: desktop only; on mobile they live in the settings sheet. */}
+        {onOpenTasks && (
+          <button
+            onClick={onOpenTasks}
+            className="hidden h-9 w-9 place-items-center rounded-xl bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-slate-200 lg:grid"
+            title="Tasks"
+          >
+            <ListTodo className="h-4.5 w-4.5" />
+          </button>
+        )}
         {onOpenBrain && (
           <button
             onClick={onOpenBrain}

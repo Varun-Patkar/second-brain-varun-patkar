@@ -99,6 +99,8 @@ export interface NodeFrontmatter {
   updatedAt: string;
   tags?: string[];
   edges?: Array<{ to: string; type: EdgeType }>;
+  /** For `task` nodes: completion state. Absent means open. Mirrors D1 `archived`. */
+  status?: "open" | "done";
 }
 
 /** A single write requested by the brain agent (batched into one git commit). */
@@ -189,6 +191,10 @@ export interface TurnMetrics {
   toolsEnabled?: number;
   /** Number of skills loaded for the brain this turn. */
   skillsEnabled?: number;
+  /** Framework-reported input/context tokens used (peak prompt size this turn). */
+  tokensUsed?: number;
+  /** The selected model's context window (max input tokens). */
+  tokenLimit?: number;
 }
 
 /** One step in the agent trace shown in the UI. */
@@ -300,6 +306,25 @@ export interface BrainConfigUpdateResult {
 }
 
 /* ------------------------------------------------------------------ */
+/* Secrets (server-side only; WRITE-ONLY from the UI)                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Response of `GET /secrets`. Returns NAMES ONLY — stored secret values are never
+ * sent back to the client. Reference a secret elsewhere as `{{secret:NAME}}`
+ * (resolved server-side, e.g. in an MCP server URL).
+ */
+export interface SecretsResponse {
+  names: string[];
+}
+
+/** Request body for `POST /secrets` (set or overwrite a secret). */
+export interface SecretUpsert {
+  name: string;
+  value: string;
+}
+
+/* ------------------------------------------------------------------ */
 /* Chat history (stored on the brain branch, not indexed in D1/FTS)    */
 /* ------------------------------------------------------------------ */
 
@@ -386,4 +411,37 @@ export interface BrainNodeRef {
 /** Node index for the viewer (`GET /brain/nodes`). */
 export interface BrainNodesResponse {
   nodes: BrainNodeRef[];
+}
+
+/* ------------------------------------------------------------------ */
+/* Tasks page (interactive checklist over `type=task` nodes)           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A task shown on the dedicated tasks page. `done` mirrors the D1 `archived`
+ * flag: a done task is archived so it is excluded from normal LLM retrieval, but
+ * still listed (checked) on the tasks page.
+ */
+export interface TaskItem {
+  id: string;
+  title: string;
+  summary: string;
+  mdPath: string;
+  done: boolean;
+}
+
+/** Response of `GET /tasks` — all task nodes, including done (archived) ones. */
+export interface TasksResponse {
+  tasks: TaskItem[];
+}
+
+/** Request body for `POST /tasks/:id/status`. */
+export interface TaskStatusUpdate {
+  done: boolean;
+}
+
+/** Response of `POST /tasks/:id/status`. */
+export interface TaskStatusResponse {
+  id: string;
+  done: boolean;
 }

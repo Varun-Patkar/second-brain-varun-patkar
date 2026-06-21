@@ -11,7 +11,7 @@
  * @packageDocumentation
  */
 
-import type { BrainConfigUpdate, ChatTurnRequest, TurnStreamEvent } from "@second-brain/shared";
+import type { BrainConfigUpdate, ChatTurnRequest, SecretUpsert, TaskStatusUpdate, TurnStreamEvent } from "@second-brain/shared";
 import type { Env } from "./env.js";
 import { buildAuthorizeUrl, completeOAuth } from "./auth/oauth.js";
 import { verifySession } from "./auth/session.js";
@@ -21,7 +21,9 @@ import { createTurnContext } from "./runtime/context.js";
 import { applyConfigChanges, invalidateBrainConfig, loadBrainConfig } from "./storage/config.js";
 import { listChats, loadChat, loadChatAsset, deleteChat } from "./storage/chats.js";
 import { getBrainTree, readFile } from "./storage/github.js";
-import { listAllNodes } from "./storage/d1.js";
+import { listAllNodes, listNodesByType } from "./storage/d1.js";
+import { setTaskStatus } from "./storage/writes.js";
+import { deleteSecret, isValidSecretName, listSecretNames, putSecret } from "./storage/secrets.js";
 import { isTurnRunning } from "./storage/kv.js";
 import { runTurn } from "./turn.js";
 
@@ -198,6 +200,93 @@ export default {
           corsHeaders,
         );
       }
+    }
+
+    // --- Tasks: list all task nodes (including done/archived) ---
+    if (url.pathname === "/tasks" && req.method === "GET") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      try {
+        const ctx = createTurnContext(env, () => {});
+        const nodes = await listNodesByType(ctx, "task");
+        const tasks = nodes.map((n) => ({
+          id: n.id,
+          title: n.title,
+          summary: n.summary,
+          mdPath: n.mdPath,
+          done: n.archived,
+        }));
+        return json({ tasks }, { status: 200 }, corsHeaders);
+      } catch (err) {
+        return json(
+          { error: err instanceof Error ? err.message : "tasks_failed" },
+          { status: 500 },
+          corsHeaders,
+        );
+      }
+    }
+
+    // --- Tasks: toggle a task's completion (markdown + D1 kept in sync) ---
+    if (url.pathname.startsWith("/tasks/") && url.pathname.endsWith("/status") && req.method === "POST") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      const id = decodeURIComponent(url.pathname.slice("/tasks/".length, -"/status".length));
+      const body = (await req.json().catch(() => null)) as TaskStatusUpdate | null;
+      if (!id || typeof body?.done !== "boolean") {
+        return json({ error: "invalid_request" }, { status: 400 }, corsHeaders);
+      }
+      try {
+        const ctx = createTurnContext(env, () => {});
+        const ok = await setTaskStatus(ctx, id, body.done);
+        if (!ok) return json({ error: "not_found" }, { status: 404 }, corsHeaders);
+        return json({ id, done: body.done }, { status: 200 }, corsHeaders);
+      } catch (err) {
+        return json(
+          { error: err instanceof Error ? err.message : "task_status_failed" },
+          { status: 500 },
+          corsHeaders,
+        );
+      }
+    }
+
+    // --- Secrets: list NAMES only (values are never returned) ---
+    if (url.pathname === "/secrets" && req.method === "GET") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      const ctx = createTurnContext(env, () => {});
+      const names = await listSecretNames(ctx);
+      return json({ names }, { status: 200 }, corsHeaders);
+    }
+
+    // --- Secrets: set or overwrite a secret (write-only; value never read back) ---
+    if (url.pathname === "/secrets" && req.method === "POST") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      const body = (await req.json().catch(() => null)) as SecretUpsert | null;
+      if (!body?.name || typeof body.value !== "string" || !isValidSecretName(body.name)) {
+        return json({ error: "invalid_request" }, { status: 400 }, corsHeaders);
+      }
+      try {
+        const ctx = createTurnContext(env, () => {});
+        await putSecret(ctx, body.name, body.value);
+        return json({ ok: true }, { status: 200 }, corsHeaders);
+      } catch (err) {
+        return json(
+          { error: err instanceof Error ? err.message : "secret_save_failed" },
+          { status: 500 },
+          corsHeaders,
+        );
+      }
+    }
+
+    // --- Secrets: delete a secret by name ---
+    if (url.pathname.startsWith("/secrets/") && req.method === "DELETE") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      const name = decodeURIComponent(url.pathname.slice("/secrets/".length));
+      const ctx = createTurnContext(env, () => {});
+      await deleteSecret(ctx, name);
+      return json({ ok: true }, { status: 200 }, corsHeaders);
     }
 
     // --- Chat history: list summaries ---

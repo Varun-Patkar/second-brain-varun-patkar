@@ -8,7 +8,7 @@
  */
 
 import { AnimatePresence, motion } from "framer-motion";
-import { X, FolderTree, Github } from "lucide-react";
+import { X, FolderTree, Github, ListTodo } from "lucide-react";
 import type { TraceEvent, TurnMetrics } from "@second-brain/shared";
 import type { ProviderConfig } from "../types.js";
 import type { Connection } from "../hooks/useProviderConnection.js";
@@ -39,6 +39,7 @@ export function MobileSettings({
   onTest,
   onManageConfig,
   onOpenBrain,
+  onOpenTasks,
   repoUrl,
   trace,
   metrics,
@@ -53,6 +54,8 @@ export function MobileSettings({
   onManageConfig?: () => void;
   /** Open the in-app brain viewer (mobile-only entry point). */
   onOpenBrain?: () => void;
+  /** Open the tasks page (mobile-only entry point). */
+  onOpenTasks?: () => void;
   /** GitHub repo URL (mobile-only link). */
   repoUrl?: string;
   trace: TraceEvent[];
@@ -103,9 +106,18 @@ export function MobileSettings({
             </div>
 
             <div className="min-h-0 flex-1 space-y-3 overflow-auto scroll-thin px-0.5">
-              {/* Brain viewer + GitHub (desktop has these in the top bar). */}
-              {(onOpenBrain || repoUrl) && (
+              {/* Brain viewer + Tasks + GitHub (desktop has these in the top bar). */}
+              {(onOpenBrain || onOpenTasks || repoUrl) && (
                 <div className="grid grid-cols-2 gap-2">
+                  {onOpenTasks && (
+                    <button
+                      onClick={onOpenTasks}
+                      className="flex items-center justify-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+                    >
+                      <ListTodo className="h-4 w-4" />
+                      Tasks
+                    </button>
+                  )}
                   {onOpenBrain && (
                     <button
                       onClick={onOpenBrain}

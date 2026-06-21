@@ -18,7 +18,11 @@ import type {
   ChatTurnRequest,
   ModelsResponse,
   ProviderTestResult,
+  SecretsResponse,
+  SecretUpsert,
   SessionInfo,
+  TaskStatusResponse,
+  TasksResponse,
   TurnStatusResponse,
   TurnStreamEvent,
 } from "@second-brain/shared";
@@ -165,6 +169,38 @@ export async function saveConfig(update: BrainConfigUpdate): Promise<BrainConfig
   return data;
 }
 
+/** List the NAMES of stored secrets (values are never returned by the server). */
+export async function getSecretNames(): Promise<string[]> {
+  const res = await fetch(`${WORKER_URL}/secrets`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(`Failed to load secrets: HTTP ${res.status}`);
+  return ((await res.json()) as SecretsResponse).names;
+}
+
+/** Set or overwrite a secret value (write-only; the value is never read back). */
+export async function putSecret(name: string, value: string): Promise<void> {
+  const res = await fetch(`${WORKER_URL}/secrets`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ name, value } satisfies SecretUpsert),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `Failed to save secret: HTTP ${res.status}`);
+  }
+}
+
+/** Delete a stored secret by name. */
+export async function deleteSecret(name: string): Promise<void> {
+  const res = await fetch(`${WORKER_URL}/secrets/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok && res.status !== 404) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `Failed to delete secret: HTTP ${res.status}`);
+  }
+}
+
 /** List stored chat summaries (most recent first). */
 export async function listChats(): Promise<ChatListResponse> {
   try {
@@ -219,6 +255,27 @@ export async function getChatAsset(path: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/** List all task nodes (including done/archived ones) for the tasks page. */
+export async function getTasks(): Promise<TasksResponse["tasks"]> {
+  const res = await fetch(`${WORKER_URL}/tasks`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(`Failed to load tasks: HTTP ${res.status}`);
+  return ((await res.json()) as TasksResponse).tasks;
+}
+
+/** Toggle a task's completion state (markdown + D1 kept in sync server-side). */
+export async function setTaskStatus(id: string, done: boolean): Promise<boolean> {
+  const res = await fetch(`${WORKER_URL}/tasks/${encodeURIComponent(id)}/status`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ done }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `Failed to update task: HTTP ${res.status}`);
+  }
+  return ((await res.json()) as TaskStatusResponse).done;
 }
 
 /** Repo info for the brain viewer + GitHub link. */

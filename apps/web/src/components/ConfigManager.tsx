@@ -9,11 +9,15 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Plus, Trash2, Loader2, Server, BookOpen, Save } from "lucide-react";
+import { X, Plus, Trash2, Loader2, Server, BookOpen, Save, KeyRound } from "lucide-react";
 import type { BrainSkill, McpServerConfig } from "@second-brain/shared";
 import { getConfig, saveConfig } from "../api.js";
+import { SecretsSection } from "./SecretsSection.js";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
+
+/** Which section of the config hub is active. */
+type ConfigTab = "mcp" | "skills" | "secrets";
 
 export function ConfigManager({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [loading, setLoading] = useState(false);
@@ -22,6 +26,7 @@ export function ConfigManager({ open, onClose }: { open: boolean; onClose: () =>
   const [originalSkillNames, setOriginalSkillNames] = useState<string[]>([]);
   const [save, setSave] = useState<SaveState>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<ConfigTab>("mcp");
 
   // Load the current config each time the modal opens.
   useEffect(() => {
@@ -83,7 +88,7 @@ export function ConfigManager({ open, onClose }: { open: boolean; onClose: () =>
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
-              <span className="text-sm font-semibold text-slate-200">MCP servers &amp; skills</span>
+              <span className="text-sm font-semibold text-slate-200">Manage config</span>
               <button
                 onClick={onClose}
                 className="grid h-8 w-8 place-items-center rounded-lg bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
@@ -93,13 +98,22 @@ export function ConfigManager({ open, onClose }: { open: boolean; onClose: () =>
               </button>
             </div>
 
+            {/* Tabs */}
+            <div className="flex gap-1 border-b border-white/5 px-3 py-2">
+              <TabButton active={tab === "mcp"} onClick={() => setTab("mcp")} icon={<Server className="h-4 w-4" />} label="MCP servers" />
+              <TabButton active={tab === "skills"} onClick={() => setTab("skills")} icon={<BookOpen className="h-4 w-4" />} label="Skills" />
+              <TabButton active={tab === "secrets"} onClick={() => setTab("secrets")} icon={<KeyRound className="h-4 w-4" />} label="Secrets" />
+            </div>
+
             {/* Body */}
             <div className="min-h-0 flex-1 space-y-5 overflow-auto scroll-thin p-4">
-              {loading ? (
+              {tab === "secrets" ? (
+                <SecretsSection />
+              ) : loading ? (
                 <div className="grid place-items-center py-10 text-slate-500">
                   <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
-              ) : (
+              ) : tab === "mcp" ? (
                 <>
                   {/* MCP servers */}
                   <section>
@@ -107,26 +121,28 @@ export function ConfigManager({ open, onClose }: { open: boolean; onClose: () =>
                     <div className="space-y-2">
                       {servers.map((s, i) => (
                         <div key={i} className="rounded-xl border border-white/10 bg-black/20 p-2.5">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                             <input
                               value={s.id}
                               onChange={(e) => patchServer(i, { id: e.target.value })}
                               placeholder="id (e.g. docs)"
-                              className="input flex-[0_0_8rem]"
+                              className="input w-full sm:w-32 sm:flex-none"
                             />
-                            <input
-                              value={s.url}
-                              onChange={(e) => patchServer(i, { url: e.target.value })}
-                              placeholder="https://mcp.example.com"
-                              className="input flex-1"
-                            />
-                            <button
-                              onClick={() => setServers((p) => p.filter((_, idx) => idx !== i))}
-                              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-slate-400 transition hover:bg-rose-500/20 hover:text-rose-300"
-                              title="Remove"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                            <div className="flex w-full items-center gap-2 sm:flex-1">
+                              <input
+                                value={s.url}
+                                onChange={(e) => patchServer(i, { url: e.target.value })}
+                                placeholder="https://mcp.example.com"
+                                className="input flex-1"
+                              />
+                              <button
+                                onClick={() => setServers((p) => p.filter((_, idx) => idx !== i))}
+                                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-slate-400 transition hover:bg-rose-500/20 hover:text-rose-300"
+                                title="Remove"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
                           </div>
                           <label className="mt-2 flex items-center gap-2 text-xs text-slate-400">
                             <input
@@ -148,33 +164,37 @@ export function ConfigManager({ open, onClose }: { open: boolean; onClose: () =>
                       />
                     </div>
                   </section>
-
+                </>
+              ) : (
+                <>
                   {/* Skills */}
                   <section>
                     <SectionHeader icon={<BookOpen className="h-4 w-4" />} title="Skills" />
                     <div className="space-y-2">
                       {skills.map((s, i) => (
                         <div key={i} className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-2.5">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                             <input
                               value={s.name}
                               onChange={(e) => patchSkill(i, { name: e.target.value })}
                               placeholder="name"
-                              className="input flex-[0_0_10rem]"
+                              className="input w-full sm:w-40 sm:flex-none"
                             />
-                            <input
-                              value={s.description}
-                              onChange={(e) => patchSkill(i, { description: e.target.value })}
-                              placeholder="when to use this skill"
-                              className="input flex-1"
-                            />
-                            <button
-                              onClick={() => setSkills((p) => p.filter((_, idx) => idx !== i))}
-                              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-slate-400 transition hover:bg-rose-500/20 hover:text-rose-300"
-                              title="Remove"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                            <div className="flex w-full items-center gap-2 sm:flex-1">
+                              <input
+                                value={s.description}
+                                onChange={(e) => patchSkill(i, { description: e.target.value })}
+                                placeholder="when to use this skill"
+                                className="input flex-1"
+                              />
+                              <button
+                                onClick={() => setSkills((p) => p.filter((_, idx) => idx !== i))}
+                                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-slate-400 transition hover:bg-rose-500/20 hover:text-rose-300"
+                                title="Remove"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
                           </div>
                           <textarea
                             value={s.content}
@@ -197,25 +217,53 @@ export function ConfigManager({ open, onClose }: { open: boolean; onClose: () =>
               )}
             </div>
 
-            {/* Footer */}
-            <div className="flex items-center justify-between gap-3 border-t border-white/5 px-4 py-3">
-              <div className="min-w-0 text-xs">
-                {error && <span className="text-amber-400">{error}</span>}
-                {save === "saved" && !error && <span className="text-emerald-400">Saved.</span>}
+            {/* Footer — secrets save themselves per-action, so the bulk Save is
+                only for the MCP servers + skills tabs. */}
+            {tab !== "secrets" && (
+              <div className="flex items-center justify-between gap-3 border-t border-white/5 px-4 py-3">
+                <div className="min-w-0 text-xs">
+                  {error && <span className="text-amber-400">{error}</span>}
+                  {save === "saved" && !error && <span className="text-emerald-400">Saved.</span>}
+                </div>
+                <button
+                  onClick={onSave}
+                  disabled={loading || save === "saving"}
+                  className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-glow-500 to-aqua-400 px-4 py-2 text-sm font-medium text-white shadow-lg transition disabled:opacity-50"
+                >
+                  {save === "saving" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Save changes
+                </button>
               </div>
-              <button
-                onClick={onSave}
-                disabled={loading || save === "saving"}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-glow-500 to-aqua-400 px-4 py-2 text-sm font-medium text-white shadow-lg transition disabled:opacity-50"
-              >
-                {save === "saving" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Save changes
-              </button>
-            </div>
+            )}
           </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+/** A tab button in the config hub header. */
+function TabButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+        active ? "bg-glow-600/20 text-slate-100" : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+      }`}
+    >
+      {icon}
+      <span className="hidden sm:inline">{label}</span>
+    </button>
   );
 }
 

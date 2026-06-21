@@ -14,6 +14,7 @@ import { connectMCP, type MCPConnection } from "agent-framework-js/mcp";
 import type { Tool } from "agent-framework-js/tools";
 import type { TurnContext } from "../runtime/context.js";
 import type { McpServerConfig } from "./config.js";
+import { resolveSecrets } from "./secrets.js";
 
 /** A live MCP connection plus the tools it contributed (for later cleanup). */
 export interface McpAttachment {
@@ -40,7 +41,10 @@ export async function attachMcpTools(
     // Connecting + listing tools each touch the network → charge the budget.
     ctx.budget.git();
     try {
-      const conn = await connectMCP({ id: s.id, transport: { kind: "remote", url: s.url } });
+      // Inject any `{{secret:NAME}}` references in the URL server-side (e.g. an
+      // auth token in a query param). Secrets never appear in traces/markdown.
+      const url = await resolveSecrets(ctx, s.url);
+      const conn = await connectMCP({ id: s.id, transport: { kind: "remote", url } });
       await conn.connect();
       const serverTools = await conn.listTools();
       tools.push(...serverTools);

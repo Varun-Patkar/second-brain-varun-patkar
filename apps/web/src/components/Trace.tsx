@@ -4,12 +4,25 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Activity, GitCommit, Database, Cpu, Wrench, BookOpen } from "lucide-react";
 import type { TraceEvent, TurnMetrics } from "@second-brain/shared";
 
+/** Compaction kicks in at this fraction of the context window (framework default). */
+const COMPACTION_THRESHOLD = 0.9;
+
+/** Format a token count compactly (e.g. 12345 → "12.3k"). */
+function formatTokens(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 100000 ? 0 : 1)}k`;
+  return `${n}`;
+}
+
 export function Trace({ trace, metrics }: { trace: TraceEvent[]; metrics: TurnMetrics | null }) {
+  const showTokens = metrics?.tokensUsed != null && metrics.tokenLimit != null && metrics.tokenLimit > 0;
   return (
     <div className="glass flex h-full flex-col rounded-2xl p-3">
-      <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-300">
-        <Activity className="h-4 w-4 text-aqua-400" />
-        Agent activity
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-semibold text-slate-300">
+          <Activity className="h-4 w-4 text-aqua-400" />
+          Agent activity
+        </div>
+        {showTokens && <TokenMeter used={metrics!.tokensUsed!} limit={metrics!.tokenLimit!} />}
       </div>
 
       <div className="flex-1 space-y-1.5 overflow-auto scroll-thin pr-1">
@@ -52,6 +65,38 @@ export function Trace({ trace, metrics }: { trace: TraceEvent[]; metrics: TurnMe
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * A compact context-window meter: shows `used / limit` tokens with a colour-coded
+ * bar (emerald < 50%, amber 50–80%, rose > 80%) and how far the conversation is
+ * from the ~90% compaction threshold. Token usage is reported by the framework.
+ */
+function TokenMeter({ used, limit }: { used: number; limit: number }) {
+  const pct = Math.min(1, used / limit);
+  const colour = pct < 0.5 ? "bg-emerald-400" : pct < 0.8 ? "bg-amber-400" : "bg-rose-400";
+  const text = pct < 0.5 ? "text-emerald-300" : pct < 0.8 ? "text-amber-300" : "text-rose-300";
+  const away = Math.max(0, Math.round(COMPACTION_THRESHOLD * limit - used));
+  const caption =
+    away > 0
+      ? `Compacts at ~${Math.round(COMPACTION_THRESHOLD * 100)}% (${formatTokens(away)} away)`
+      : "At the compaction threshold";
+  return (
+    <div
+      className="flex min-w-0 flex-col items-end gap-0.5"
+      title={`${used.toLocaleString()} / ${limit.toLocaleString()} context tokens`}
+    >
+      <div className={`flex items-center gap-1.5 font-mono text-[0.7rem] ${text}`}>
+        <span>
+          {formatTokens(used)} / {formatTokens(limit)}
+        </span>
+      </div>
+      <div className="h-1 w-20 overflow-hidden rounded-full bg-white/10">
+        <div className={`h-full rounded-full transition-all ${colour}`} style={{ width: `${pct * 100}%` }} />
+      </div>
+      <span className="text-[0.6rem] text-slate-500">{caption}</span>
     </div>
   );
 }

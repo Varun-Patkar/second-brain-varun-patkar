@@ -13,9 +13,9 @@ import type { BrainEdge, BrainNode, BrainWrite, NodeDocument, NodeFrontmatter, W
 import type { TurnContext } from "../runtime/context.js";
 import { markDirty } from "../runtime/context.js";
 import { genId, nowIso, contentHash } from "../util/ids.js";
-import { nodePath, serializeDocument } from "../util/markdown.js";
+import { nodePath, parseDocument, serializeDocument } from "../util/markdown.js";
 import { commitBatch, readFile } from "./github.js";
-import { getNodes, upsertNodes, upsertEdges, deleteNode, bumpAccess, stageOutbox, completeOutbox } from "./d1.js";
+import { getNodes, upsertNodes, upsertEdges, deleteNode, bumpAccess, stageOutbox, completeOutbox, setNodeArchived } from "./d1.js";
 import { putCachedDoc, invalidateDoc } from "./kv.js";
 
 /** Persist a batch of writes (one commit + idempotent index update). */
@@ -92,6 +92,38 @@ export async function persistWrites(ctx: TurnContext, writes: BrainWrite[]): Pro
   await bumpAccess(ctx, ids, "write");
 
   return { commitSha, results };
+}
+
+/**
+ * Toggle a task's completion state, keeping markdown + D1 in sync as one unit:
+ *  - markdown frontmatter `status` becomes `done`/`open` (committed once), and
+ *  - the D1 `archived` flag mirrors it, so a done task is EXCLUDED from `search()`
+ *    (and therefore from normal LLM context) without being deleted.
+ *
+ * Returns false when the node does not exist or is not a task.
+ */
+export async function setTaskStatus(ctx: TurnContext, id: string, done: boolean): Promise<boolean> {
+  const [node] = await getNodes(ctx, [id]);
+  if (!node || node.type !== "task") return false;
+
+  // Update the markdown source of truth (best-effort: if the file is missing we
+  // still flip the D1 flag so the page/state stay consistent).
+  const file = await readFile(ctx, node.mdPath);
+  if (file) {
+    const { frontmatter, body } = parseDocument(file.text);
+    frontmatter.status = done ? "done" : "open";
+    frontmatter.updatedAt = nowIso();
+    await commitBatch(ctx, {
+      message: `brain: ${done ? "complete" : "reopen"} task ${id}`,
+      writes: [{ path: node.mdPath, content: serializeDocument(frontmatter, body) }],
+    });
+  }
+
+  // Mirror into D1 (archived = done) so done tasks drop out of search/context.
+  await setNodeArchived(ctx, id, done);
+  await invalidateDoc(ctx, id);
+  markDirty(ctx, id);
+  return true;
 }
 
 /** Move a node's markdown to `_deleted/` and drop it from the index. */

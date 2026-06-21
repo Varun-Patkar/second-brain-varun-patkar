@@ -76,6 +76,8 @@ function metricsOf(ctx: TurnContext): TurnMetrics {
     dirtySetSize: ctx.dirty.nodes.size,
     toolsEnabled: ctx.counts.tools,
     skillsEnabled: ctx.counts.skills,
+    ...(ctx.tokens.input > 0 ? { tokensUsed: ctx.tokens.input } : {}),
+    ...(ctx.tokenLimit ? { tokenLimit: ctx.tokenLimit } : {}),
   };
 }
 
@@ -126,7 +128,11 @@ export async function runTurn(env: Env, req: ChatTurnRequest, emit: Emit): Promi
   }
 
   try {
-    const { provider, model, supportsVision } = buildProvider(env, req);
+    const { provider, model, supportsVision, tokenLimit } = buildProvider(env, req);
+    // Expose the context window + a live-metrics hook so the UI token meter updates
+    // as each model call reports its usage (see the budget middleware).
+    ctx.tokenLimit = tokenLimit;
+    ctx.emitMetrics = () => emit({ type: "metrics", metrics: metricsOf(ctx) });
 
     // Load the brain's own config (MCP servers + skills), then attach MCP tools.
     const config = await loadBrainConfig(ctx);

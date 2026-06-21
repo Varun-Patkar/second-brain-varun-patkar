@@ -34,6 +34,9 @@ export function serializeDocument(fm: NodeFrontmatter, body: string): string {
   lines.push(`summary: ${quote(fm.summary)}`);
   lines.push(`createdAt: ${fm.createdAt}`);
   lines.push(`updatedAt: ${fm.updatedAt}`);
+  if (fm.status) {
+    lines.push(`status: ${fm.status}`);
+  }
   if (fm.tags && fm.tags.length > 0) {
     lines.push(`tags: [${fm.tags.map((t) => quote(t)).join(", ")}]`);
   }
@@ -92,6 +95,9 @@ export function parseDocument(raw: string): { frontmatter: NodeFrontmatter; body
       case "updatedAt":
         fm.updatedAt = value;
         break;
+      case "status":
+        if (value === "open" || value === "done") fm.status = value;
+        break;
       case "tags": {
         const inner = value.replace(/^\[/, "").replace(/\]$/, "").trim();
         fm.tags = inner ? inner.split(",").map((t) => unquote(t)) : [];
@@ -111,6 +117,7 @@ export function parseDocument(raw: string): { frontmatter: NodeFrontmatter; body
       summary: fm.summary ?? "",
       createdAt: fm.createdAt ?? "",
       updatedAt: fm.updatedAt ?? "",
+      ...(fm.status ? { status: fm.status } : {}),
       ...(fm.tags ? { tags: fm.tags } : {}),
       ...(fm.edges ? { edges: fm.edges } : {}),
     },
