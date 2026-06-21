@@ -41,7 +41,7 @@ export function TopBar({
         <div className="min-w-0 leading-tight">
           <div className="truncate text-sm font-semibold text-gradient">Second Brain</div>
           <div className="hidden truncate text-[0.7rem] text-slate-500 sm:block">
-            single-owner knowledge base
+            Varun Patkar's knowledge base
           </div>
         </div>
       </div>

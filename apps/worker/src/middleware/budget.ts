@@ -7,6 +7,7 @@
  */
 
 import type { Middleware } from "agent-framework-js/middleware";
+import { estimateTokens } from "agent-framework-js/agents";
 import type { TurnContext } from "../runtime/context.js";
 import { BudgetSoftCapError } from "../runtime/budget.js";
 
@@ -20,19 +21,16 @@ export function budgetMiddleware(ctx: TurnContext, agent: "brain" | "consolidato
       ctx.budget.llm();
       ctx.emitTrace({ agent, tool: "llm", detail: `model call (${c.request.model ?? "default"})` });
       const res = await next();
-      // Capture framework-native token usage (if the provider reported it). `input`
-      // is the prompt/context size of this call (track the peak); `output` accrues.
-      const usage = res.usage;
-      if (usage) {
-        if (typeof usage.inputTokens === "number") {
-          ctx.tokens.input = Math.max(ctx.tokens.input, usage.inputTokens);
-        }
-        if (typeof usage.outputTokens === "number") {
-          ctx.tokens.output += usage.outputTokens;
-        }
-        // Push a live metrics update so the UI's token meter moves during the turn.
-        ctx.emitMetrics?.();
-      }
+      // Token usage for the context-window meter. Prefer the provider's reported
+      // usage; when it doesn't report any (e.g. Copilot), fall back to the
+      // framework's request estimate (~4 chars/token) so the meter still moves.
+      const reportedInput = res.usage?.inputTokens;
+      const inputTokens =
+        typeof reportedInput === "number" ? reportedInput : estimateTokens(c.request.messages);
+      if (inputTokens > 0) ctx.tokens.input = Math.max(ctx.tokens.input, inputTokens);
+      if (typeof res.usage?.outputTokens === "number") ctx.tokens.output += res.usage.outputTokens;
+      // Push a live metrics update so the UI's token meter moves during the turn.
+      ctx.emitMetrics?.();
       return res;
     },
   };

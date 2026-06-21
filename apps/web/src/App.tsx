@@ -141,17 +141,14 @@ export function App() {
 
   // When a fresh chat id is assigned (first message of a new conversation), reflect
   // it in the URL so the conversation is bookmarkable / shareable. Only while the
-  // chat view is active, to avoid clobbering `#brain`.
+  // chat view is active, to avoid clobbering `#brain`. Never clears the hash here —
+  // that is done explicitly in `newChat` — so a direct `#chat/<id>` load is not
+  // wiped before the async `openChat` sets `chatId`.
   useEffect(() => {
-    if (view !== "chat") return;
+    if (view !== "chat" || !chat.chatId) return;
     const route = parseHash();
-    if (chat.chatId) {
-      if (route.name !== "chat" || route.id !== chat.chatId) {
-        window.location.hash = `#chat/${encodeURIComponent(chat.chatId)}`;
-      }
-    } else if (route.name === "chat" && route.id) {
-      // New/empty chat: drop the id from the URL.
-      history.replaceState(null, "", window.location.pathname + window.location.search);
+    if (route.name !== "chat" || route.id !== chat.chatId) {
+      window.location.hash = `#chat/${encodeURIComponent(chat.chatId)}`;
     }
   }, [chat.chatId, view]);
 
@@ -166,6 +163,11 @@ export function App() {
   const backToChat = (): void => {
     history.replaceState(null, "", window.location.pathname + window.location.search);
     setView("chat");
+  };
+  // Start a new conversation: clear the chat id from the URL, then reset state.
+  const newChat = (): void => {
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+    chat.newChat();
   };
 
   const signOut = () => {
@@ -194,7 +196,7 @@ export function App() {
         onSignOut={signOut}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenHistory={() => setHistoryOpen(true)}
-        onNewChat={chat.newChat}
+        onNewChat={newChat}
         onOpenBrain={openBrain}
         onOpenTasks={openTasks}
         {...(repoUrl ? { repoUrl } : {})}
@@ -301,9 +303,9 @@ export function App() {
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
         onSelect={(id) => void chat.openChat(id)}
-        onNewChat={chat.newChat}
+        onNewChat={newChat}
         onDeleted={(id) => {
-          if (id === chat.chatId) chat.newChat();
+          if (id === chat.chatId) newChat();
         }}
         currentChatId={chat.chatId}
       />
