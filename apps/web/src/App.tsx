@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertTriangle, Brain } from "lucide-react";
+import { AlertTriangle, Brain, Info } from "lucide-react";
 import type { SessionInfo } from "@second-brain/shared";
 import { clearToken, completeLogin, getBrainInfo, getModels, getSession } from "./api.js";
 import { DEFAULT_PROVIDER_CONFIG, configSupportsVision, type ProviderConfig } from "./types.js";
@@ -21,21 +21,22 @@ import { Message } from "./components/Message.js";
 import { Trace } from "./components/Trace.js";
 import { Composer } from "./components/Composer.js";
 import { MobileSettings } from "./components/MobileSettings.js";
-import { ConfigManager } from "./components/ConfigManager.js";
 import { HistoryDrawer } from "./components/HistoryDrawer.js";
 import { BrainViewer } from "./components/BrainViewer.js";
 import { TasksPage } from "./components/TasksPage.js";
+import { ConfigPage } from "./components/ConfigPage.js";
 
 type AuthState = "loading" | "anon" | "authed";
 
 /** A parsed view route derived from the URL hash. */
-type Route = { name: "brain" } | { name: "tasks" } | { name: "chat"; id?: string };
+type Route = { name: "brain" } | { name: "tasks" } | { name: "config" } | { name: "chat"; id?: string };
 
 /** Parse the URL hash into a route (the navigation source of truth). */
 function parseHash(): Route {
   const h = window.location.hash.replace(/^#\/?/, "");
   if (h === "brain") return { name: "brain" };
   if (h === "tasks") return { name: "tasks" };
+  if (h === "config") return { name: "config" };
   if (h.startsWith("chat/")) {
     const id = decodeURIComponent(h.slice("chat/".length));
     return id ? { name: "chat", id } : { name: "chat" };
@@ -51,21 +52,45 @@ export function App() {
   const [models, setModels] = useState<string[]>([]);
   // Controls the mobile bottom-sheet (provider picker + agent activity).
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // Controls the MCP/skills management modal.
-  const [configOpen, setConfigOpen] = useState(false);
   // Controls the chat-history drawer.
   const [historyOpen, setHistoryOpen] = useState(false);
-  // Which top-level view is shown: the chat, the brain viewer, or the tasks page.
-  // Driven by the URL hash (#brain / #tasks) so each is directly reachable.
-  const [view, setView] = useState<"chat" | "brain" | "tasks">(() => {
+  // Transient toast message (e.g. "that conversation no longer exists").
+  const [toast, setToast] = useState<string | null>(null);
+  // Which top-level view is shown: chat, brain viewer, tasks, or config page.
+  // Driven by the URL hash (#brain / #tasks / #config) so each is directly reachable.
+  const [view, setView] = useState<"chat" | "brain" | "tasks" | "config">(() => {
     const name = parseHash().name;
-    return name === "brain" ? "brain" : name === "tasks" ? "tasks" : "chat";
+    return name === "brain" ? "brain" : name === "tasks" ? "tasks" : name === "config" ? "config" : "chat";
   });
   // GitHub repo URL (for the external link button).
   const [repoUrl, setRepoUrl] = useState<string | undefined>(undefined);
   const chat = useChat();
   const { conn, test } = useProviderConnection(cfg, auth === "authed");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const toastTimer = useRef<number | undefined>(undefined);
+
+  // Show a transient toast that auto-dismisses.
+  const showToast = (msg: string): void => {
+    setToast(msg);
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 3500);
+  };
+
+  // Start a new conversation: clear the chat id from the URL, then reset state.
+  const newChat = (): void => {
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+    chat.newChat();
+  };
+
+  // Open a stored chat by id; if it no longer exists (e.g. deleted), toast and
+  // fall back to a fresh conversation.
+  const openChatOrToast = async (id: string): Promise<void> => {
+    const found = await chat.openChat(id);
+    if (!found) {
+      showToast("That conversation no longer exists.");
+      newChat();
+    }
+  };
 
   // Bootstrap: complete OAuth callback if present, else restore session.
   useEffect(() => {
@@ -111,7 +136,7 @@ export function App() {
     if (auth !== "authed") return;
     const route = parseHash();
     if (route.name === "chat" && route.id) {
-      void chat.openChat(route.id);
+      void openChatOrToast(route.id);
     } else {
       void chat.resumeActive();
     }
@@ -129,9 +154,17 @@ export function App() {
   useEffect(() => {
     const onHash = (): void => {
       const route = parseHash();
-      setView(route.name === "brain" ? "brain" : route.name === "tasks" ? "tasks" : "chat");
+      setView(
+        route.name === "brain"
+          ? "brain"
+          : route.name === "tasks"
+            ? "tasks"
+            : route.name === "config"
+              ? "config"
+              : "chat",
+      );
       if (route.name === "chat" && route.id && route.id !== chat.chatId) {
-        void chat.openChat(route.id);
+        void openChatOrToast(route.id);
       }
     };
     window.addEventListener("hashchange", onHash);
@@ -160,14 +193,13 @@ export function App() {
     window.location.hash = "#tasks";
     setView("tasks");
   };
+  const openConfig = (): void => {
+    window.location.hash = "#config";
+    setView("config");
+  };
   const backToChat = (): void => {
     history.replaceState(null, "", window.location.pathname + window.location.search);
     setView("chat");
-  };
-  // Start a new conversation: clear the chat id from the URL, then reset state.
-  const newChat = (): void => {
-    history.replaceState(null, "", window.location.pathname + window.location.search);
-    chat.newChat();
   };
 
   const signOut = () => {
@@ -188,6 +220,7 @@ export function App() {
 
   if (view === "brain") return <BrainViewer onBack={backToChat} />;
   if (view === "tasks") return <TasksPage onBack={backToChat} />;
+  if (view === "config") return <ConfigPage onBack={backToChat} />;
 
   return (
     <div className="mx-auto flex h-full w-[90vw] flex-col gap-3 p-3 md:p-4">
@@ -261,7 +294,7 @@ export function App() {
             models={models}
             conn={conn}
             onTest={test}
-            onManageConfig={() => setConfigOpen(true)}
+            onManageConfig={openConfig}
           />
           <div className="min-h-0 flex-1">
             <Trace trace={chat.trace} metrics={chat.metrics} />
@@ -280,7 +313,7 @@ export function App() {
         onTest={test}
         onManageConfig={() => {
           setSettingsOpen(false);
-          setConfigOpen(true);
+          openConfig();
         }}
         onOpenBrain={() => {
           setSettingsOpen(false);
@@ -295,14 +328,28 @@ export function App() {
         metrics={chat.metrics}
       />
 
-      {/* MCP + skills management modal. */}
-      <ConfigManager open={configOpen} onClose={() => setConfigOpen(false)} />
+      {/* MCP + skills management is now a full page (#config), not a modal. */}
+
+      {/* Transient toast (e.g. when a conversation no longer exists). */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            className="glass fixed left-1/2 top-4 z-50 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-sm text-slate-200 shadow-xl"
+          >
+            <Info className="h-4 w-4 shrink-0 text-aqua-400" />
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Chat history drawer. */}
       <HistoryDrawer
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
-        onSelect={(id) => void chat.openChat(id)}
+        onSelect={(id) => void openChatOrToast(id)}
         onNewChat={newChat}
         onDeleted={(id) => {
           if (id === chat.chatId) newChat();

@@ -161,13 +161,14 @@ export function useChat() {
     localStorage.removeItem(ACTIVE_KEY);
   }, []);
 
-  /** Load a stored conversation by id (for viewing / continuing). */
-  const openChat = useCallback(async (id: string) => {
+  /** Load a stored conversation by id (for viewing / continuing). Returns false
+   * when the conversation no longer exists (e.g. it was deleted). */
+  const openChat = useCallback(async (id: string): Promise<boolean> => {
     abortRef.current?.abort();
     setStreaming(false);
     setError(null);
     const rec = await getChat(id);
-    if (!rec) return;
+    if (!rec) return false;
     setChatId(rec.id);
     setMessages(
       rec.messages.map((m) => ({
@@ -194,6 +195,7 @@ export function useChat() {
     const lastAssistant = [...rec.messages].reverse().find((m) => m.role === "assistant");
     setTrace(lastAssistant?.trace ?? []);
     setMetrics(lastAssistant?.metrics ?? null);
+    return true;
   }, []);
 
   /**
