@@ -44,6 +44,29 @@ function parseHash(): Route {
   return { name: "chat" };
 }
 
+/**
+ * Rough client-side token estimate (~4 chars/token) for the context meter, used as
+ * a fallback when the backend hasn't reported real usage yet (e.g. before the first
+ * turn, on a freshly loaded chat, or if the provider omits usage). Adds a baseline
+ * for the system prompt + tool schemas the worker always sends.
+ */
+function estimateClientTokens(messages: Array<{ content: string }>): number {
+  if (messages.length === 0) return 0;
+  let chars = 0;
+  for (const m of messages) chars += m.content?.length ?? 0;
+  return Math.ceil(chars / 4) + 1500;
+}
+
+/** Approximate context window for the selected model (mirrors the worker's caps). */
+function clientTokenLimit(cfg: ProviderConfig): number {
+  if (cfg.provider === "lmstudio") return 262144;
+  const m = cfg.copilotModel || "";
+  if (m.startsWith("claude")) return 200000;
+  if (m.startsWith("gpt-5")) return 272000;
+  if (m.startsWith("gemini")) return 1048576;
+  return 128000;
+}
+
 export function App() {
   const [auth, setAuth] = useState<AuthState>("loading");
   const [session, setSession] = useState<SessionInfo | null>(null);
@@ -208,6 +231,11 @@ export function App() {
     setAuth("anon");
   };
 
+  // Context-window meter values: prefer real backend metrics, else a client
+  // estimate so the meter is always visible (even before the first turn).
+  const tokenLimit = chat.metrics?.tokenLimit ?? clientTokenLimit(cfg);
+  const tokensUsed = chat.metrics?.tokensUsed ?? estimateClientTokens(chat.messages);
+
   if (auth === "loading") {
     return (
       <div className="grid h-full place-items-center">
@@ -297,7 +325,7 @@ export function App() {
             onManageConfig={openConfig}
           />
           <div className="min-h-0 flex-1">
-            <Trace trace={chat.trace} metrics={chat.metrics} />
+            <Trace trace={chat.trace} metrics={chat.metrics} tokensUsed={tokensUsed} tokenLimit={tokenLimit} />
           </div>
         </aside>
       </div>
@@ -326,6 +354,8 @@ export function App() {
         {...(repoUrl ? { repoUrl } : {})}
         trace={chat.trace}
         metrics={chat.metrics}
+        tokensUsed={tokensUsed}
+        tokenLimit={tokenLimit}
       />
 
       {/* MCP + skills management is now a full page (#config), not a modal. */}

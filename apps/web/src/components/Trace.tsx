@@ -1,7 +1,7 @@
 /** Live agent trace + per-turn metrics panel. */
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Activity, GitCommit, Database, Cpu, Wrench, BookOpen } from "lucide-react";
+import { Activity, GitCommit, Database, Cpu, Wrench, BookOpen, Gauge } from "lucide-react";
 import type { TraceEvent, TurnMetrics } from "@second-brain/shared";
 
 /** Compaction kicks in at this fraction of the context window (framework default). */
@@ -13,16 +13,25 @@ function formatTokens(n: number): string {
   return `${n}`;
 }
 
-export function Trace({ trace, metrics }: { trace: TraceEvent[]; metrics: TurnMetrics | null }) {
-  const showTokens = metrics?.tokensUsed != null && metrics.tokenLimit != null && metrics.tokenLimit > 0;
+export function Trace({
+  trace,
+  metrics,
+  tokensUsed,
+  tokenLimit,
+}: {
+  trace: TraceEvent[];
+  metrics: TurnMetrics | null;
+  /** Context tokens used (backend-reported when available, else a client estimate). */
+  tokensUsed?: number;
+  /** The selected model's context window (backend-reported, else derived from the model). */
+  tokenLimit?: number;
+}) {
+  const showTokens = (tokenLimit ?? 0) > 0 && (tokensUsed ?? 0) > 0;
   return (
     <div className="glass flex h-full flex-col rounded-2xl p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-sm font-semibold text-slate-300">
-          <Activity className="h-4 w-4 text-aqua-400" />
-          Agent activity
-        </div>
-        {showTokens && <TokenMeter used={metrics!.tokensUsed!} limit={metrics!.tokenLimit!} />}
+      <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-300">
+        <Activity className="h-4 w-4 text-aqua-400" />
+        Agent activity
       </div>
 
       <div className="flex-1 space-y-1.5 overflow-auto scroll-thin pr-1">
@@ -51,17 +60,22 @@ export function Trace({ trace, metrics }: { trace: TraceEvent[]; metrics: TurnMe
         </AnimatePresence>
       </div>
 
-      {metrics && (
-        <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-white/5 pt-2 text-[0.7rem]">
-          <Metric icon={<Activity className="h-3 w-3" />} label="subreq" value={metrics.subrequestsUsed} max={50} />
-          <Metric icon={<Cpu className="h-3 w-3" />} label="llm" value={metrics.llmCalls} />
-          <Metric icon={<GitCommit className="h-3 w-3" />} label="git" value={metrics.gitCalls} />
-          <Metric icon={<Database className="h-3 w-3" />} label="d1" value={metrics.d1Calls} />
-          {metrics.toolsEnabled != null && (
-            <Metric icon={<Wrench className="h-3 w-3" />} label="tools" value={metrics.toolsEnabled} />
-          )}
-          {metrics.skillsEnabled != null && (
-            <Metric icon={<BookOpen className="h-3 w-3" />} label="skills" value={metrics.skillsEnabled} />
+      {(showTokens || metrics) && (
+        <div className="mt-2 space-y-2 border-t border-white/5 pt-2">
+          {showTokens && <TokenBar used={tokensUsed!} limit={tokenLimit!} />}
+          {metrics && (
+            <div className="grid grid-cols-2 gap-1.5 text-[0.7rem]">
+              <Metric icon={<Activity className="h-3 w-3" />} label="subreq" value={metrics.subrequestsUsed} max={50} />
+              <Metric icon={<Cpu className="h-3 w-3" />} label="llm" value={metrics.llmCalls} />
+              <Metric icon={<GitCommit className="h-3 w-3" />} label="git" value={metrics.gitCalls} />
+              <Metric icon={<Database className="h-3 w-3" />} label="d1" value={metrics.d1Calls} />
+              {metrics.toolsEnabled != null && (
+                <Metric icon={<Wrench className="h-3 w-3" />} label="tools" value={metrics.toolsEnabled} />
+              )}
+              {metrics.skillsEnabled != null && (
+                <Metric icon={<BookOpen className="h-3 w-3" />} label="skills" value={metrics.skillsEnabled} />
+              )}
+            </div>
           )}
         </div>
       )}
@@ -70,33 +84,38 @@ export function Trace({ trace, metrics }: { trace: TraceEvent[]; metrics: TurnMe
 }
 
 /**
- * A compact context-window meter: shows `used / limit` tokens with a colour-coded
- * bar (emerald < 50%, amber 50–80%, rose > 80%) and how far the conversation is
- * from the ~90% compaction threshold. Token usage is reported by the framework.
+ * A prominent context-window meter shown above the metric grid: `used / limit`
+ * tokens with a colour-coded bar (emerald < 50%, amber 50–80%, rose > 80%) and how
+ * far the conversation is from the ~90% compaction threshold. Driven by the
+ * backend-reported usage when present, otherwise a client-side estimate.
  */
-function TokenMeter({ used, limit }: { used: number; limit: number }) {
+function TokenBar({ used, limit }: { used: number; limit: number }) {
   const pct = Math.min(1, used / limit);
   const colour = pct < 0.5 ? "bg-emerald-400" : pct < 0.8 ? "bg-amber-400" : "bg-rose-400";
   const text = pct < 0.5 ? "text-emerald-300" : pct < 0.8 ? "text-amber-300" : "text-rose-300";
   const away = Math.max(0, Math.round(COMPACTION_THRESHOLD * limit - used));
   const caption =
     away > 0
-      ? `Compacts at ~${Math.round(COMPACTION_THRESHOLD * 100)}% (${formatTokens(away)} away)`
+      ? `Compacts at ~${Math.round(COMPACTION_THRESHOLD * 100)}% · ${formatTokens(away)} away`
       : "At the compaction threshold";
   return (
     <div
-      className="flex min-w-0 flex-col items-end gap-0.5"
+      className="rounded-lg bg-white/[0.03] px-2.5 py-2"
       title={`${used.toLocaleString()} / ${limit.toLocaleString()} context tokens`}
     >
-      <div className={`flex items-center gap-1.5 font-mono text-[0.7rem] ${text}`}>
-        <span>
+      <div className="mb-1 flex items-center justify-between text-[0.7rem]">
+        <span className="flex items-center gap-1 font-medium text-slate-300">
+          <Gauge className="h-3.5 w-3.5 text-aqua-400" />
+          context window
+        </span>
+        <span className={`font-mono ${text}`}>
           {formatTokens(used)} / {formatTokens(limit)}
         </span>
       </div>
-      <div className="h-1 w-20 overflow-hidden rounded-full bg-white/10">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
         <div className={`h-full rounded-full transition-all ${colour}`} style={{ width: `${pct * 100}%` }} />
       </div>
-      <span className="text-[0.6rem] text-slate-500">{caption}</span>
+      <div className="mt-1 text-[0.6rem] text-slate-500">{caption}</div>
     </div>
   );
 }

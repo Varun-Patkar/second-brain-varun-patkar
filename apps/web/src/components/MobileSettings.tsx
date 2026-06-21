@@ -43,6 +43,8 @@ export function MobileSettings({
   repoUrl,
   trace,
   metrics,
+  tokensUsed,
+  tokenLimit,
 }: {
   open: boolean;
   onClose: () => void;
@@ -60,6 +62,10 @@ export function MobileSettings({
   repoUrl?: string;
   trace: TraceEvent[];
   metrics: TurnMetrics | null;
+  /** Context tokens used (backend-reported, else a client estimate). */
+  tokensUsed?: number;
+  /** The selected model's context window. */
+  tokenLimit?: number;
 }) {
   return (
     <AnimatePresence>
@@ -149,7 +155,12 @@ export function MobileSettings({
                 {...(onManageConfig ? { onManageConfig } : {})}
               />
               <div className="h-[44vh] min-h-[16rem]">
-                <Trace trace={trace} metrics={metrics} />
+                <Trace
+                  trace={trace}
+                  metrics={metrics}
+                  {...(tokensUsed !== undefined ? { tokensUsed } : {})}
+                  {...(tokenLimit !== undefined ? { tokenLimit } : {})}
+                />
               </div>
             </div>
           </motion.div>
