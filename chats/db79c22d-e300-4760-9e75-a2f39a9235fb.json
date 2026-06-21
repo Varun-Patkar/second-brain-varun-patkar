@@ -2,7 +2,7 @@
   "id": "db79c22d-e300-4760-9e75-a2f39a9235fb",
   "title": "Hi",
   "createdAt": "2026-06-21T05:36:47.482Z",
-  "updatedAt": "2026-06-21T05:36:47.482Z",
+  "updatedAt": "2026-06-21T05:36:54.293Z",
   "messages": [
     {
       "role": "user",
@@ -15,6 +15,31 @@
         {
           "type": "text",
           "text": "Hi there! How can I help you today? 😊"
+        }
+      ],
+      "trace": [],
+      "metrics": {
+        "subrequestsUsed": 1,
+        "llmCalls": 0,
+        "gitCalls": 1,
+        "d1Calls": 0,
+        "dirtySetSize": 0,
+        "toolsEnabled": 5,
+        "skillsEnabled": 0,
+        "tokenLimit": 200000
+      }
+    },
+    {
+      "role": "user",
+      "content": "Yo"
+    },
+    {
+      "role": "assistant",
+      "content": "Hey! What's on your mind? 😄",
+      "segments": [
+        {
+          "type": "text",
+          "text": "Hey! What's on your mind? 😄"
         }
       ],
       "trace": [],
