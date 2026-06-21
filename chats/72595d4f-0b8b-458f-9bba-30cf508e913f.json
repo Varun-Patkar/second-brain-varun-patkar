@@ -1,0 +1,33 @@
+{
+  "id": "72595d4f-0b8b-458f-9bba-30cf508e913f",
+  "title": "Hi",
+  "createdAt": "2026-06-21T05:59:10.182Z",
+  "updatedAt": "2026-06-21T05:59:10.182Z",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hi"
+    },
+    {
+      "role": "assistant",
+      "content": "Hi there! How can I help you today? Feel free to share anything you'd like to remember, ask a question, or just chat. 😊",
+      "segments": [
+        {
+          "type": "text",
+          "text": "Hi there! How can I help you today? Feel free to share anything you'd like to remember, ask a question, or just chat. 😊"
+        }
+      ],
+      "trace": [],
+      "metrics": {
+        "subrequestsUsed": 1,
+        "llmCalls": 0,
+        "gitCalls": 1,
+        "d1Calls": 0,
+        "dirtySetSize": 0,
+        "toolsEnabled": 5,
+        "skillsEnabled": 0,
+        "tokenLimit": 200000
+      }
+    }
+  ]
+}
