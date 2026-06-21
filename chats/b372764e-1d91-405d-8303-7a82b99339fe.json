@@ -2,7 +2,7 @@
   "id": "b372764e-1d91-405d-8303-7a82b99339fe",
   "title": "Create some tasks for today I need to do to improve the s…",
   "createdAt": "2026-06-21T04:20:04.927Z",
-  "updatedAt": "2026-06-21T04:20:04.927Z",
+  "updatedAt": "2026-06-21T04:22:10.303Z",
   "messages": [
     {
       "role": "user",
@@ -115,6 +115,134 @@
         "gitCalls": 6,
         "d1Calls": 12,
         "dirtySetSize": 5,
+        "toolsEnabled": 5,
+        "skillsEnabled": 0
+      }
+    },
+    {
+      "role": "user",
+      "content": "also add a task to add a token counter at top right iof agnet actiivty thaT COUNTS TOKEn along with token limit of model and shows when it will be com[pacted."
+    },
+    {
+      "role": "assistant",
+      "content": "Added! ✅ The journal overview is updated too. Here's the full task list for today:\n\n---\n\n## 🧠 Second Brain Improvements — Today\n\n| # | Task | Status |\n|---|------|--------|\n| 1 | 📱 Improve Mobile UI | ⬜ Not started |\n| 2 | 🔐 Add Secrets Page | ⬜ Not started |\n| 3 | ⚡ Frequently Used Prompts | ⬜ Not started |\n| 4 | 📋 Tasks for Today — Dedicated Page | ⬜ Not started |\n| 5 | 🔢 Token Counter in Agent Activity | ⬜ Not started |\n\n---\n\n### 🔢 Token Counter — Details\n- **Location:** Top right of the Agent Activity panel\n- **Shows:** Tokens used / model token limit (e.g. `4,821 / 200,000`)\n- **Progress indicator:** Bar or ratio so you can see context fill at a glance\n- **Compaction estimate:** e.g. *\"Compacts at ~80% — 2,400 tokens away\"*\n- **Live updates** as agent streams responses\n- **Colour coded:** 🟢 <50% · 🟡 50–80% · 🔴 >80%",
+      "segments": [
+        {
+          "type": "tool",
+          "call": {
+            "id": "call_e4544879f9444123a10b2aa264c9197f",
+            "name": "graph_search",
+            "input": {
+              "query": "second brain improvements tasks today",
+              "k": 5,
+              "types": [
+                "task",
+                "journal"
+              ]
+            },
+            "status": "ok",
+            "output": {
+              "count": 4,
+              "titles": [
+                "Second Brain Improvement Tasks — Today",
+                "Tasks for Today — Dedicated Page",
+                "Improve Mobile UI",
+                "Add Frequently Used Prompts Feature"
+              ]
+            }
+          }
+        },
+        {
+          "type": "tool",
+          "call": {
+            "id": "call_4f5ed48a0e8642ec880836a92d664fb3",
+            "name": "read_markdown",
+            "input": {
+              "ids": [
+                "node_dee4723d1ba64b8b9fafe2d3c7099055"
+              ]
+            },
+            "status": "ok",
+            "output": {
+              "requested": 1,
+              "loaded": 1
+            }
+          }
+        },
+        {
+          "type": "tool",
+          "call": {
+            "id": "call_659da1a6d91f423b91eba79f359b76c3",
+            "name": "write_brain",
+            "input": {
+              "writes": [
+                {
+                  "type": "task",
+                  "title": "Token Counter in Agent Activity Panel"
+                },
+                {
+                  "type": "journal",
+                  "title": "Second Brain Improvement Tasks — Today"
+                }
+              ]
+            },
+            "status": "ok",
+            "output": {
+              "committed": 2,
+              "results": [
+                "created node_5cbf12b58e384fe9ab7cde48e5c969cf",
+                "updated node_dee4723d1ba64b8b9fafe2d3c7099055"
+              ]
+            }
+          }
+        },
+        {
+          "type": "text",
+          "text": "Added! ✅ The journal overview is updated too. Here's the full task list for today:\n\n---\n\n## 🧠 Second Brain Improvements — Today\n\n| # | Task | Status |\n|---|------|--------|\n| 1 | 📱 Improve Mobile UI | ⬜ Not started |\n| 2 | 🔐 Add Secrets Page | ⬜ Not started |\n| 3 | ⚡ Frequently Used Prompts | ⬜ Not started |\n| 4 | 📋 Tasks for Today — Dedicated Page | ⬜ Not started |\n| 5 | 🔢 Token Counter in Agent Activity | ⬜ Not started |\n\n---\n\n### 🔢 Token Counter — Details\n- **Location:** Top right of the Agent Activity panel\n- **Shows:** Tokens used / model token limit (e.g. `4,821 / 200,000`)\n- **Progress indicator:** Bar or ratio so you can see context fill at a glance\n- **Compaction estimate:** e.g. *\"Compacts at ~80% — 2,400 tokens away\"*\n- **Live updates** as agent streams responses\n- **Colour coded:** 🟢 <50% · 🟡 50–80% · 🔴 >80%"
+        }
+      ],
+      "trace": [
+        {
+          "agent": "brain",
+          "tool": "graph_search",
+          "detail": "{\"count\":4,\"titles\":[\"Second Brain Improvement Tasks — Today\",\"Tasks for Today — Dedicated Page\",\"Improve Mobile UI\",\"Add Frequently Used Prompts Feature\"]}",
+          "at": "2026-06-21T04:21:40.342Z"
+        },
+        {
+          "agent": "brain",
+          "tool": "read_markdown",
+          "detail": "{\"requested\":1,\"loaded\":1}",
+          "at": "2026-06-21T04:21:42.268Z"
+        },
+        {
+          "agent": "brain",
+          "tool": "write_brain",
+          "detail": "{\"committed\":2,\"results\":[\"created node_5cbf12b58e384fe9ab7cde48e5c969cf\",\"updated node_dee4723d1ba64b8b9fafe2d3c7099055\"]}",
+          "at": "2026-06-21T04:21:58.765Z"
+        },
+        {
+          "agent": "consolidator",
+          "detail": "consolidating 2 dirty node(s)",
+          "at": "2026-06-21T04:22:04.748Z"
+        },
+        {
+          "agent": "consolidator",
+          "tool": "llm",
+          "detail": "model call (claude-sonnet-4.6)",
+          "at": "2026-06-21T04:22:04.978Z"
+        },
+        {
+          "agent": "consolidator",
+          "detail": "applied 1, deferred 0",
+          "at": "2026-06-21T04:22:10.303Z"
+        }
+      ],
+      "metrics": {
+        "subrequestsUsed": 18,
+        "llmCalls": 1,
+        "gitCalls": 6,
+        "d1Calls": 11,
+        "dirtySetSize": 2,
         "toolsEnabled": 5,
         "skillsEnabled": 0
       }
