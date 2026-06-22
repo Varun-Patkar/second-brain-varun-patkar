@@ -181,7 +181,11 @@ export function BrainViewer({ onBack }: { onBack: () => void }) {
       {header}
 
       {mode === "graph" ? (
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[1fr_380px]">
+        <div
+          className={`grid min-h-0 flex-1 grid-cols-1 gap-3 ${
+            selectedNodeId ? "lg:grid-cols-[1fr_380px]" : "lg:grid-cols-1"
+          }`}
+        >
           {/* Graph canvas. */}
           <div className="min-h-0">
             {loadingGraph ? (

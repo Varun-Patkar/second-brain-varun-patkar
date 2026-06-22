@@ -135,6 +135,35 @@ export function GraphView({
     return () => ro.disconnect();
   }, []);
 
+  // Tune the force simulation so the graph stays compact. Without this, the
+  // repulsion (charge) flings disconnected nodes far away (nothing pulls them
+  // back) and each re-heat pushes them further. We cap the repulsion range and
+  // add a gentle pull toward the origin so every node — connected or not — settles
+  // near the centre. Pinned nodes (geometric layouts) ignore these forces.
+  useEffect(() => {
+    const fg = fgRef.current;
+    if (!fg || !data.nodes.length || !size.w) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const charge = fg.d3Force("charge") as any;
+    charge?.strength?.(-60);
+    charge?.distanceMax?.(200);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const link = fg.d3Force("link") as any;
+    link?.distance?.(45);
+    // Gentle radial pull toward (0,0) so isolated nodes don't drift off-screen.
+    type SimNode = { x?: number; y?: number; vx?: number; vy?: number; fx?: number };
+    const contain = (alpha: number) => {
+      for (const n of data.nodes as SimNode[]) {
+        if (n.fx != null || n.x == null || n.y == null) continue;
+        n.vx = (n.vx ?? 0) - n.x * 0.03 * alpha;
+        n.vy = (n.vy ?? 0) - n.y * 0.03 * alpha;
+      }
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fg.d3Force("contain", contain as any);
+    fg.d3ReheatSimulation();
+  }, [size.w, data]);
+
   /** Whether a node passes the active type filter. */
   const isNodeVisible = (n: GraphNode): boolean => enabledTypes.has(n.type);
 
