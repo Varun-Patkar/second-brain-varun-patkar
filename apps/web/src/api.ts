@@ -11,6 +11,7 @@ import type {
   BrainConfigUpdateResult,
   BrainFileResponse,
   BrainInfo,
+  BrainGraphResponse,
   BrainNodesResponse,
   BrainTreeResponse,
   ChatListResponse,
@@ -314,6 +315,13 @@ export async function getBrainNodes(): Promise<BrainNodesResponse["nodes"]> {
   } catch {
     return [];
   }
+}
+
+/** Load the full graph (nodes + edges) for the interactive graph viewer. */
+export async function getBrainGraph(): Promise<BrainGraphResponse> {
+  const res = await fetch(`${WORKER_URL}/brain/graph`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(`Failed to load graph: HTTP ${res.status}`);
+  return (await res.json()) as BrainGraphResponse;
 }
 
 /**

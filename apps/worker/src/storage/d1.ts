@@ -132,6 +132,20 @@ export async function listAllNodes(
   return (res.results ?? []).map((r) => ({ id: r.id, type: r.type, title: r.title, mdPath: r.md_path }));
 }
 
+/** List all edges (src, dst, type) between non-archived nodes — for the graph viewer. */
+export async function listAllEdges(
+  ctx: TurnContext,
+): Promise<Array<{ src: string; dst: string; type: string }>> {
+  ctx.budget.d1();
+  const res = await ctx.env.DB.prepare(
+    `SELECT e.src AS src, e.dst AS dst, e.type AS type
+     FROM edges e
+     JOIN nodes ns ON ns.id = e.src AND ns.archived = 0
+     JOIN nodes nd ON nd.id = e.dst AND nd.archived = 0`,
+  ).all<{ src: string; dst: string; type: string }>();
+  return res.results ?? [];
+}
+
 /**
  * List all nodes of a given type, INCLUDING archived ones. Used by the tasks page,
  * which must show done (archived) tasks too — unlike `search()`, which filters
@@ -140,19 +154,20 @@ export async function listAllNodes(
 export async function listNodesByType(
   ctx: TurnContext,
   type: string,
-): Promise<Array<{ id: string; title: string; summary: string; mdPath: string; archived: boolean }>> {
+): Promise<Array<{ id: string; title: string; summary: string; mdPath: string; archived: boolean; createdAt: string }>> {
   ctx.budget.d1();
   const res = await ctx.env.DB.prepare(
-    "SELECT id, title, summary, md_path, archived FROM nodes WHERE type = ? ORDER BY created_at DESC",
+    "SELECT id, title, summary, md_path, archived, created_at FROM nodes WHERE type = ? ORDER BY created_at DESC",
   )
     .bind(type)
-    .all<{ id: string; title: string; summary: string; md_path: string; archived: number }>();
+    .all<{ id: string; title: string; summary: string; md_path: string; archived: number; created_at: string }>();
   return (res.results ?? []).map((r) => ({
     id: r.id,
     title: r.title,
     summary: r.summary,
     mdPath: r.md_path,
     archived: r.archived === 1,
+    createdAt: r.created_at,
   }));
 }
 

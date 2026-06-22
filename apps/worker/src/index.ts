@@ -21,7 +21,7 @@ import { createTurnContext } from "./runtime/context.js";
 import { applyConfigChanges, invalidateBrainConfig, loadBrainConfig } from "./storage/config.js";
 import { listChats, loadChat, loadChatAsset, deleteChat } from "./storage/chats.js";
 import { getBrainTree, readFile } from "./storage/github.js";
-import { listAllNodes, listNodesByType } from "./storage/d1.js";
+import { listAllEdges, listAllNodes, listNodesByType } from "./storage/d1.js";
 import { setTaskStatus } from "./storage/writes.js";
 import { deleteSecret, isValidSecretName, listSecretNames, putSecret } from "./storage/secrets.js";
 import { isTurnRunning } from "./storage/kv.js";
@@ -146,6 +146,19 @@ export default {
       }
     }
 
+    // --- Brain viewer: nodes + edges for the interactive graph view ---
+    if (url.pathname === "/brain/graph" && req.method === "GET") {
+      const session = await authed(env, req);
+      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
+      try {
+        const ctx = createTurnContext(env, () => {});
+        const [nodes, edges] = await Promise.all([listAllNodes(ctx), listAllEdges(ctx)]);
+        return json({ nodes, edges }, { status: 200 }, corsHeaders);
+      } catch (err) {
+        return json({ error: err instanceof Error ? err.message : "graph_failed" }, { status: 500 }, corsHeaders);
+      }
+    }
+
     // --- Available Copilot models (dynamic list) ---
     if (url.pathname === "/models" && req.method === "GET") {
       const session = await authed(env, req);
@@ -215,6 +228,7 @@ export default {
           summary: n.summary,
           mdPath: n.mdPath,
           done: n.archived,
+          createdAt: n.createdAt,
         }));
         return json({ tasks }, { status: 200 }, corsHeaders);
       } catch (err) {

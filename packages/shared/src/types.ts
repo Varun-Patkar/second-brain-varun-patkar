@@ -413,6 +413,19 @@ export interface BrainNodesResponse {
   nodes: BrainNodeRef[];
 }
 
+/** A directed edge between two nodes, used by the graph viewer. */
+export interface BrainGraphEdge {
+  src: string;
+  dst: string;
+  type: string;
+}
+
+/** Nodes + edges for the interactive graph viewer (`GET /brain/graph`). */
+export interface BrainGraphResponse {
+  nodes: BrainNodeRef[];
+  edges: BrainGraphEdge[];
+}
+
 /* ------------------------------------------------------------------ */
 /* Tasks page (interactive checklist over `type=task` nodes)           */
 /* ------------------------------------------------------------------ */
@@ -428,6 +441,8 @@ export interface TaskItem {
   summary: string;
   mdPath: string;
   done: boolean;
+  /** ISO timestamp the task node was created; drives the date-wise grouping. */
+  createdAt: string;
 }
 
 /** Response of `GET /tasks` — all task nodes, including done (archived) ones. */
