@@ -5,7 +5,7 @@
  * @packageDocumentation
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, Brain, Info } from "lucide-react";
 import type { SessionInfo } from "@second-brain/shared";
@@ -22,9 +22,17 @@ import { Trace } from "./components/Trace.js";
 import { Composer } from "./components/Composer.js";
 import { MobileSettings } from "./components/MobileSettings.js";
 import { HistoryDrawer } from "./components/HistoryDrawer.js";
-import { BrainViewer } from "./components/BrainViewer.js";
-import { TasksPage } from "./components/TasksPage.js";
-import { ConfigPage } from "./components/ConfigPage.js";
+
+// Full-page views are code-split: the brain viewer pulls in the heavy graph
+// library, so it (and the other secondary pages) load on demand rather than
+// bloating the initial chat bundle.
+const BrainViewer = lazy(() =>
+  import("./components/BrainViewer.js").then((m) => ({ default: m.BrainViewer })),
+);
+const TasksPage = lazy(() => import("./components/TasksPage.js").then((m) => ({ default: m.TasksPage })));
+const ConfigPage = lazy(() =>
+  import("./components/ConfigPage.js").then((m) => ({ default: m.ConfigPage })),
+);
 
 type AuthState = "loading" | "anon" | "authed";
 
@@ -246,9 +254,21 @@ export function App() {
 
   if (auth === "anon" || !session) return <Login />;
 
-  if (view === "brain") return <BrainViewer onBack={backToChat} />;
-  if (view === "tasks") return <TasksPage onBack={backToChat} />;
-  if (view === "config") return <ConfigPage onBack={backToChat} />;
+  if (view === "brain" || view === "tasks" || view === "config") {
+    return (
+      <Suspense
+        fallback={
+          <div className="grid h-full place-items-center">
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-glow-500/30 border-t-glow-400" />
+          </div>
+        }
+      >
+        {view === "brain" && <BrainViewer onBack={backToChat} />}
+        {view === "tasks" && <TasksPage onBack={backToChat} />}
+        {view === "config" && <ConfigPage onBack={backToChat} />}
+      </Suspense>
+    );
+  }
 
   return (
     <div className="mx-auto flex h-full w-[90vw] flex-col gap-3 p-3 md:p-4">
