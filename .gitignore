@@ -31,3 +31,6 @@ Thumbs.db
 
 # Vite
 apps/web/dist/
+
+# Transient Playwright MCP session artifacts
+.playwright-mcp/
