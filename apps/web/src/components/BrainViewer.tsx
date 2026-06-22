@@ -177,7 +177,7 @@ export function BrainViewer({ onBack }: { onBack: () => void }) {
   const widthClass = mode === "graph" ? "w-full" : "w-[90vw]";
 
   return (
-    <div className={`mx-auto flex h-full flex-col gap-3 p-3 md:p-4 ${widthClass}`}>
+    <div className={`mx-auto flex h-full min-w-0 flex-col gap-3 overflow-hidden p-3 md:p-4 ${widthClass}`}>
       {header}
 
       {mode === "graph" ? (
@@ -187,7 +187,7 @@ export function BrainViewer({ onBack }: { onBack: () => void }) {
           }`}
         >
           {/* Graph canvas. */}
-          <div className="min-h-0">
+          <div className="min-h-0 min-w-0">
             {loadingGraph ? (
               <div className="glass grid h-full place-items-center rounded-2xl text-slate-500">
                 <Loader2 className="h-6 w-6 animate-spin" />

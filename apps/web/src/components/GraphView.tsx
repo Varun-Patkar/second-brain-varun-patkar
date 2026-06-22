@@ -280,7 +280,7 @@ export function GraphView({
     );
 
   return (
-    <div className="flex h-full w-full flex-col gap-3 lg:flex-row">
+    <div className="flex h-full w-full min-w-0 flex-col gap-3 overflow-hidden lg:flex-row">
       {/* Control rail. */}
       <aside className="glass flex shrink-0 flex-col gap-4 overflow-auto scroll-thin rounded-2xl p-3 lg:w-56">
         {/* Search */}
@@ -399,7 +399,7 @@ export function GraphView({
       </aside>
 
       {/* Canvas. */}
-      <div ref={wrapRef} className="relative min-h-0 flex-1 overflow-hidden rounded-2xl bg-ink-950">
+      <div ref={wrapRef} className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl bg-ink-950">
         {/* Floating actions. */}
         <div className="absolute right-3 top-3 z-10 flex gap-2">
           <button
