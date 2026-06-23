@@ -42,7 +42,7 @@ export function Login() {
           <span className="text-gradient">Second Brain</span>
         </h1>
         <p className="mb-8 text-sm text-slate-400">
-          Your private, ever-evolving knowledge base. Only the owner can sign in —
+          Varun Patkar's ever-evolving knowledge base. Only Varun can sign in —
           but anyone can explore the brain and tasks, read-only.
         </p>
 
