@@ -21,7 +21,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line import/no-named-as-default
 import ForceGraph2D from "react-force-graph-2d";
 import type { ForceGraphMethods } from "react-force-graph-2d";
-import { Search, Maximize2, RefreshCw, Tag } from "lucide-react";
+import {
+  Search,
+  Maximize2,
+  RefreshCw,
+  Tag,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import type { BrainGraphEdge, BrainNodeRef } from "@second-brain/shared";
 import { computeLayout, type LayoutName } from "./graphLayouts.js";
 
@@ -89,7 +96,9 @@ export function GraphView({
   onSelect: (node: BrainNodeRef) => void;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const fgRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | undefined>(undefined);
+  const fgRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | undefined>(
+    undefined,
+  );
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [hoverId, setHoverId] = useState<string | null>(null);
 
@@ -107,6 +116,9 @@ export function GraphView({
   const [layout, setLayout] = useState<LayoutName>("force");
   const [query, setQuery] = useState("");
   const [showEdgeLabels, setShowEdgeLabels] = useState(false);
+  // On small screens the control rail collapses into a slide-in drawer; this
+  // tracks whether that drawer is open. Ignored at lg+ (rail is always shown).
+  const [controlsOpen, setControlsOpen] = useState(false);
 
   // Build the (stable) graph payload. Visibility + layout are applied without
   // rebuilding this, so node positions persist across filter/highlight changes.
@@ -151,7 +163,13 @@ export function GraphView({
     const link = fg.d3Force("link") as any;
     link?.distance?.(45);
     // Gentle radial pull toward (0,0) so isolated nodes don't drift off-screen.
-    type SimNode = { x?: number; y?: number; vx?: number; vy?: number; fx?: number };
+    type SimNode = {
+      x?: number;
+      y?: number;
+      vx?: number;
+      vy?: number;
+      fx?: number;
+    };
     const contain = (alpha: number) => {
       for (const n of data.nodes as SimNode[]) {
         if (n.fx != null || n.x == null || n.y == null) continue;
@@ -185,7 +203,8 @@ export function GraphView({
     if (!q) return null;
     const set = new Set<string>();
     for (const n of nodes) {
-      if (enabledTypes.has(n.type) && n.title.toLowerCase().includes(q)) set.add(n.id);
+      if (enabledTypes.has(n.type) && n.title.toLowerCase().includes(q))
+        set.add(n.id);
     }
     return set;
   }, [query, nodes, enabledTypes]);
@@ -195,7 +214,9 @@ export function GraphView({
 
   /** Pan + zoom to frame a specific set of node ids (used for search). */
   const fitToNodes = (ids: Set<string>) => {
-    const pts = data.nodes.filter((n) => ids.has(n.id) && n.x != null && n.y != null);
+    const pts = data.nodes.filter(
+      (n) => ids.has(n.id) && n.x != null && n.y != null,
+    );
     if (pts.length === 0 || !size.w) return;
     const xs = pts.map((n) => n.x as number);
     const ys = pts.map((n) => n.y as number);
@@ -276,13 +297,40 @@ export function GraphView({
   // Click a category name to isolate it (or restore all when already isolated).
   const isolateType = (type: string) =>
     setEnabledTypes((prev) =>
-      prev.size === 1 && prev.has(type) ? new Set(typeCounts.map(([t]) => t)) : new Set([type]),
+      prev.size === 1 && prev.has(type)
+        ? new Set(typeCounts.map(([t]) => t))
+        : new Set([type]),
     );
 
   return (
-    <div className="flex h-full w-full min-w-0 flex-col gap-3 overflow-hidden lg:flex-row">
-      {/* Control rail. */}
-      <aside className="glass flex shrink-0 flex-col gap-4 overflow-auto scroll-thin rounded-2xl p-3 lg:w-56">
+    <div className="relative flex h-full w-full min-w-0 flex-col gap-3 overflow-hidden lg:flex-row">
+      {/* Backdrop for the mobile control drawer. */}
+      {controlsOpen && (
+        <div
+          onClick={() => setControlsOpen(false)}
+          className="absolute inset-0 z-20 bg-black/50 backdrop-blur-sm lg:hidden"
+        />
+      )}
+
+      {/* Control rail. On mobile it's an off-canvas drawer toggled by the
+          "Filters" button; on lg+ it's a static sidebar. */}
+      <aside
+        className={`glass absolute inset-y-0 left-0 z-30 flex w-72 max-w-[85vw] shrink-0 flex-col gap-4 overflow-auto scroll-thin rounded-2xl p-3 shadow-2xl transition-transform duration-300 lg:static lg:z-auto lg:w-56 lg:max-w-none lg:translate-x-0 lg:shadow-none ${
+          controlsOpen ? "translate-x-0" : "-translate-x-[110%]"
+        }`}
+      >
+        {/* Mobile drawer header with a close button. */}
+        <div className="flex items-center justify-between lg:hidden">
+          <span className="text-sm font-semibold text-slate-200">Filters</span>
+          <button
+            onClick={() => setControlsOpen(false)}
+            className="rounded-lg bg-white/5 p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
+            title="Close filters"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
         {/* Search */}
         <div>
           <div className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
@@ -293,13 +341,17 @@ export function GraphView({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && matchIds && fitToNodes(matchIds)}
+              onKeyDown={(e) =>
+                e.key === "Enter" && matchIds && fitToNodes(matchIds)
+              }
               placeholder="Search nodes…"
               className="w-full bg-transparent text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none"
             />
           </div>
           {matchIds && (
-            <div className="mt-1 text-[0.65rem] text-slate-500">{matchIds.size} match(es)</div>
+            <div className="mt-1 text-[0.65rem] text-slate-500">
+              {matchIds.size} match(es)
+            </div>
           )}
         </div>
 
@@ -318,7 +370,9 @@ export function GraphView({
               </button>
               <span className="text-slate-700">·</span>
               <button
-                onClick={() => setEnabledTypes(new Set(typeCounts.map(([t]) => t)))}
+                onClick={() =>
+                  setEnabledTypes(new Set(typeCounts.map(([t]) => t)))
+                }
                 className="text-slate-500 transition hover:text-slate-300"
               >
                 All
@@ -336,12 +390,18 @@ export function GraphView({
                   <button
                     onClick={() => toggleType(type)}
                     className={`grid h-4 w-4 shrink-0 place-items-center rounded border transition ${
-                      on ? "border-transparent" : "border-white/20 bg-transparent"
+                      on
+                        ? "border-transparent"
+                        : "border-white/20 bg-transparent"
                     }`}
-                    style={on ? { backgroundColor: colorForType(type) } : undefined}
+                    style={
+                      on ? { backgroundColor: colorForType(type) } : undefined
+                    }
                     title={on ? "Hide this type" : "Show this type"}
                   >
-                    {on && <span className="h-1.5 w-1.5 rounded-[1px] bg-black/60" />}
+                    {on && (
+                      <span className="h-1.5 w-1.5 rounded-[1px] bg-black/60" />
+                    )}
                   </button>
                   <button
                     onClick={() => isolateType(type)}
@@ -352,7 +412,9 @@ export function GraphView({
                   >
                     <span className="truncate">{type}</span>
                   </button>
-                  <span className="shrink-0 text-[0.65rem] text-slate-500">{count}</span>
+                  <span className="shrink-0 text-[0.65rem] text-slate-500">
+                    {count}
+                  </span>
                 </div>
               );
             })}
@@ -389,7 +451,9 @@ export function GraphView({
           <button
             onClick={() => setShowEdgeLabels((v) => !v)}
             className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition ${
-              showEdgeLabels ? "bg-glow-600/25 text-slate-100" : "text-slate-400 hover:bg-white/5"
+              showEdgeLabels
+                ? "bg-glow-600/25 text-slate-100"
+                : "text-slate-400 hover:bg-white/5"
             }`}
           >
             <Tag className="h-3.5 w-3.5" />
@@ -399,7 +463,20 @@ export function GraphView({
       </aside>
 
       {/* Canvas. */}
-      <div ref={wrapRef} className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl bg-ink-950">
+      <div
+        ref={wrapRef}
+        className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl bg-ink-950"
+      >
+        {/* Mobile-only button to open the filters drawer. */}
+        <button
+          onClick={() => setControlsOpen(true)}
+          className="glass absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 transition hover:bg-white/10 lg:hidden"
+          title="Open filters"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          Filters
+        </button>
+
         {/* Floating actions. */}
         <div className="absolute right-3 top-3 z-10 flex gap-2">
           <button
@@ -435,26 +512,35 @@ export function GraphView({
             nodeRelSize={5}
             nodeVisibility={(n) => isNodeVisible(n as GraphNode)}
             linkVisibility={(l) =>
-              isNodeVisible(l.source as GraphNode) && isNodeVisible(l.target as GraphNode)
+              isNodeVisible(l.source as GraphNode) &&
+              isNodeVisible(l.target as GraphNode)
             }
             linkDirectionalArrowLength={3}
             linkDirectionalArrowRelPos={0.85}
             onNodeHover={(n) => setHoverId((n as GraphNode | null)?.id ?? null)}
             onNodeClick={(n) => {
               const node = n as GraphNode;
-              onSelect({ id: node.id, title: node.title, type: node.type, mdPath: node.mdPath });
+              onSelect({
+                id: node.id,
+                title: node.title,
+                type: node.type,
+                mdPath: node.mdPath,
+              });
             }}
             linkColor={(l) => {
               const src = endpointId(l.source as string | GraphNode);
               const dst = endpointId(l.target as string | GraphNode);
-              if (neighborIds && (src === active || dst === active)) return "rgba(124,92,255,0.7)";
+              if (neighborIds && (src === active || dst === active))
+                return "rgba(124,92,255,0.7)";
               if (neighborIds) return "rgba(148,163,184,0.08)";
               return "rgba(148,163,184,0.35)";
             }}
             linkWidth={(l) => {
               const src = endpointId(l.source as string | GraphNode);
               const dst = endpointId(l.target as string | GraphNode);
-              return neighborIds && (src === active || dst === active) ? 2 : 0.8;
+              return neighborIds && (src === active || dst === active)
+                ? 2
+                : 0.8;
             }}
             linkCanvasObjectMode={() => "after"}
             linkCanvasObject={(l, ctx, globalScale) => {
@@ -487,7 +573,9 @@ export function GraphView({
               if (isSel || isMatch) {
                 ctx.beginPath();
                 ctx.arc(n.x ?? 0, n.y ?? 0, r + 3, 0, 2 * Math.PI);
-                ctx.fillStyle = isSel ? "rgba(124,92,255,0.3)" : "rgba(34,211,238,0.25)";
+                ctx.fillStyle = isSel
+                  ? "rgba(124,92,255,0.3)"
+                  : "rgba(34,211,238,0.25)";
                 ctx.fill();
               }
 
@@ -504,8 +592,11 @@ export function GraphView({
                 ctx.font = `${fontSize}px Inter, sans-serif`;
                 ctx.textAlign = "center";
                 ctx.textBaseline = "top";
-                ctx.fillStyle = dimmed ? "rgba(148,163,184,0.4)" : "rgba(226,232,240,0.95)";
-                const label = n.title.length > 28 ? `${n.title.slice(0, 27)}…` : n.title;
+                ctx.fillStyle = dimmed
+                  ? "rgba(148,163,184,0.4)"
+                  : "rgba(226,232,240,0.95)";
+                const label =
+                  n.title.length > 28 ? `${n.title.slice(0, 27)}…` : n.title;
                 ctx.fillText(label, n.x ?? 0, (n.y ?? 0) + r + 1.5);
               }
               ctx.globalAlpha = 1;
