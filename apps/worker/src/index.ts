@@ -56,16 +56,6 @@ async function authed(env: Env, req: Request) {
   return token ? verifySession(env, token) : null;
 }
 
-/**
- * Paths on the brain branch that are hidden from anonymous (public) visitors:
- * the agent/config files (`mcp.json`, `skills/`) and trashed notes (`_deleted/`).
- * The authenticated owner still sees everything; only the public read views are
- * restricted to the knowledge wiki itself, never the agent configuration.
- */
-function isOwnerOnlyBrainPath(path: string): boolean {
-  return path === "mcp.json" || path.startsWith("skills/") || path.startsWith("_deleted/");
-}
-
 export default {
   async fetch(req: Request, env: Env, exec: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
@@ -117,29 +107,21 @@ export default {
     }
 
     // --- Brain viewer: file tree on the brain branch (public read) ---
-    // Anonymous visitors get the knowledge wiki only; agent/config files and
-    // trashed notes are filtered out. The owner (authed) sees the full tree.
+    // The repo is public, so the full tree is exposed to everyone.
     if (url.pathname === "/brain/tree" && req.method === "GET") {
-      const session = await authed(env, req);
       try {
         const ctx = createTurnContext(env, () => {});
         const files = await getBrainTree(ctx);
-        const visible = session ? files : files.filter((p) => !isOwnerOnlyBrainPath(p));
-        return json({ files: visible }, { status: 200 }, corsHeaders);
+        return json({ files }, { status: 200 }, corsHeaders);
       } catch (err) {
         return json({ error: err instanceof Error ? err.message : "tree_failed" }, { status: 500 }, corsHeaders);
       }
     }
 
     // --- Brain viewer: a single file's content (public read) ---
-    // Anonymous visitors cannot read agent/config or trashed files.
     if (url.pathname === "/brain/file" && req.method === "GET") {
-      const session = await authed(env, req);
       const path = url.searchParams.get("path") ?? "";
       if (!path || path.includes("..")) return json({ error: "invalid_path" }, { status: 400 }, corsHeaders);
-      if (!session && isOwnerOnlyBrainPath(path)) {
-        return json({ error: "not_found" }, { status: 404 }, corsHeaders);
-      }
       const ctx = createTurnContext(env, () => {});
       const file = await readFile(ctx, path);
       if (!file) return json({ error: "not_found" }, { status: 404 }, corsHeaders);
