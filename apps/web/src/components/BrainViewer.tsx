@@ -62,7 +62,7 @@ function sortedChildren(node: TreeNode): TreeNode[] {
   });
 }
 
-export function BrainViewer({ onBack }: { onBack: () => void }) {
+export function BrainViewer({ onBack, readOnly = false }: { onBack: () => void; readOnly?: boolean }) {
   // Which presentation is active. The interactive graph is the default; the file
   // tree is the alternative, classic view. Persisted only in component state.
   const [mode, setMode] = useState<"graph" | "files">("graph");
@@ -167,7 +167,7 @@ export function BrainViewer({ onBack }: { onBack: () => void }) {
           className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm text-slate-200 transition hover:bg-white/10"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">Back to chat</span>
+          <span className="hidden sm:inline">{readOnly ? "Sign in" : "Back to chat"}</span>
         </button>
       </div>
     </header>

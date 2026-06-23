@@ -56,6 +56,16 @@ async function authed(env: Env, req: Request) {
   return token ? verifySession(env, token) : null;
 }
 
+/**
+ * Paths on the brain branch that are hidden from anonymous (public) visitors:
+ * the agent/config files (`mcp.json`, `skills/`) and trashed notes (`_deleted/`).
+ * The authenticated owner still sees everything; only the public read views are
+ * restricted to the knowledge wiki itself, never the agent configuration.
+ */
+function isOwnerOnlyBrainPath(path: string): boolean {
+  return path === "mcp.json" || path.startsWith("skills/") || path.startsWith("_deleted/");
+}
+
 export default {
   async fetch(req: Request, env: Env, exec: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
@@ -97,10 +107,8 @@ export default {
       return json(session, { status: 200 }, corsHeaders);
     }
 
-    // --- Brain viewer: repo info ---
+    // --- Brain viewer: repo info (public read) ---
     if (url.pathname === "/brain/info" && req.method === "GET") {
-      const session = await authed(env, req);
-      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
       return json(
         { repoUrl: `https://github.com/${env.GH_REPO}`, branch: env.BRAIN_BRANCH },
         { status: 200 },
@@ -108,35 +116,38 @@ export default {
       );
     }
 
-    // --- Brain viewer: file tree on the brain branch ---
+    // --- Brain viewer: file tree on the brain branch (public read) ---
+    // Anonymous visitors get the knowledge wiki only; agent/config files and
+    // trashed notes are filtered out. The owner (authed) sees the full tree.
     if (url.pathname === "/brain/tree" && req.method === "GET") {
       const session = await authed(env, req);
-      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
       try {
         const ctx = createTurnContext(env, () => {});
         const files = await getBrainTree(ctx);
-        return json({ files }, { status: 200 }, corsHeaders);
+        const visible = session ? files : files.filter((p) => !isOwnerOnlyBrainPath(p));
+        return json({ files: visible }, { status: 200 }, corsHeaders);
       } catch (err) {
         return json({ error: err instanceof Error ? err.message : "tree_failed" }, { status: 500 }, corsHeaders);
       }
     }
 
-    // --- Brain viewer: a single file's content ---
+    // --- Brain viewer: a single file's content (public read) ---
+    // Anonymous visitors cannot read agent/config or trashed files.
     if (url.pathname === "/brain/file" && req.method === "GET") {
       const session = await authed(env, req);
-      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
       const path = url.searchParams.get("path") ?? "";
       if (!path || path.includes("..")) return json({ error: "invalid_path" }, { status: 400 }, corsHeaders);
+      if (!session && isOwnerOnlyBrainPath(path)) {
+        return json({ error: "not_found" }, { status: 404 }, corsHeaders);
+      }
       const ctx = createTurnContext(env, () => {});
       const file = await readFile(ctx, path);
       if (!file) return json({ error: "not_found" }, { status: 404 }, corsHeaders);
       return json({ content: file.text }, { status: 200 }, corsHeaders);
     }
 
-    // --- Brain viewer: node index (id -> title/path) for resolving edge links ---
+    // --- Brain viewer: node index (id -> title/path) for resolving edge links (public read) ---
     if (url.pathname === "/brain/nodes" && req.method === "GET") {
-      const session = await authed(env, req);
-      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
       try {
         const ctx = createTurnContext(env, () => {});
         const nodes = await listAllNodes(ctx);
@@ -146,10 +157,8 @@ export default {
       }
     }
 
-    // --- Brain viewer: nodes + edges for the interactive graph view ---
+    // --- Brain viewer: nodes + edges for the interactive graph view (public read) ---
     if (url.pathname === "/brain/graph" && req.method === "GET") {
-      const session = await authed(env, req);
-      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
       try {
         const ctx = createTurnContext(env, () => {});
         const [nodes, edges] = await Promise.all([listAllNodes(ctx), listAllEdges(ctx)]);
@@ -158,6 +167,8 @@ export default {
         return json({ error: err instanceof Error ? err.message : "graph_failed" }, { status: 500 }, corsHeaders);
       }
     }
+
+
 
     // --- Available Copilot models (dynamic list) ---
     if (url.pathname === "/models" && req.method === "GET") {
@@ -215,10 +226,8 @@ export default {
       }
     }
 
-    // --- Tasks: list all task nodes (including done/archived) ---
+    // --- Tasks: list all task nodes (including done/archived) (public read) ---
     if (url.pathname === "/tasks" && req.method === "GET") {
-      const session = await authed(env, req);
-      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
       try {
         const ctx = createTurnContext(env, () => {});
         const nodes = await listNodesByType(ctx, "task");

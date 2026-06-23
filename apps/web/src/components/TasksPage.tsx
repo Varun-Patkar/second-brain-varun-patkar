@@ -58,7 +58,7 @@ function isToday(iso: string): boolean {
   return dateKey(iso) === dateKey(new Date().toISOString());
 }
 
-export function TasksPage({ onBack }: { onBack: () => void }) {
+export function TasksPage({ onBack, readOnly = false }: { onBack: () => void; readOnly?: boolean }) {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +75,8 @@ export function TasksPage({ onBack }: { onBack: () => void }) {
 
   /** Toggle a task's done state with an optimistic update + rollback on error. */
   const toggle = async (task: TaskItem) => {
-    if (pending.has(task.id)) return;
+    // Anonymous visitors can view tasks but never change them.
+    if (readOnly || pending.has(task.id)) return;
     const next = !task.done;
     setPending((p) => new Set(p).add(task.id));
     setError(null);
@@ -143,7 +144,7 @@ export function TasksPage({ onBack }: { onBack: () => void }) {
           className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm text-slate-200 transition hover:bg-white/10"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to chat
+          {readOnly ? "Sign in" : "Back to chat"}
         </button>
       </header>
 
@@ -178,6 +179,7 @@ export function TasksPage({ onBack }: { onBack: () => void }) {
                     key={t.id}
                     task={t}
                     pending={pending.has(t.id)}
+                    readOnly={readOnly}
                     onToggle={() => toggle(t)}
                     {...(isToday(t.createdAt) ? {} : { dateTag: friendlyDate(t.createdAt) })}
                   />
@@ -195,6 +197,7 @@ export function TasksPage({ onBack }: { onBack: () => void }) {
                     label={g.label}
                     items={g.items}
                     pending={pending}
+                    readOnly={readOnly}
                     onToggle={toggle}
                   />
                 ))}
@@ -219,11 +222,13 @@ function DateGroup({
   items,
   pending,
   onToggle,
+  readOnly = false,
 }: {
   label: string;
   items: TaskItem[];
   pending: Set<string>;
   onToggle: (t: TaskItem) => void;
+  readOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -241,7 +246,7 @@ function DateGroup({
       {open && (
         <div className="space-y-2 border-t border-white/[0.06] p-2">
           {items.map((t) => (
-            <TaskRow key={t.id} task={t} pending={pending.has(t.id)} onToggle={() => onToggle(t)} />
+            <TaskRow key={t.id} task={t} pending={pending.has(t.id)} readOnly={readOnly} onToggle={() => onToggle(t)} />
           ))}
         </div>
       )}
@@ -255,12 +260,15 @@ function TaskRow({
   pending,
   onToggle,
   dateTag,
+  readOnly = false,
 }: {
   task: TaskItem;
   pending: boolean;
   onToggle: () => void;
   /** When set, renders a small date chip (used for leftover open tasks). */
   dateTag?: string;
+  /** Read-only (anonymous) mode: the checkbox is shown but not interactive. */
+  readOnly?: boolean;
 }) {
   return (
     <motion.div
@@ -270,9 +278,9 @@ function TaskRow({
     >
       <button
         onClick={onToggle}
-        disabled={pending}
-        className="mt-0.5 shrink-0 text-slate-400 transition hover:text-glow-300 disabled:opacity-50"
-        title={task.done ? "Mark as not done" : "Mark as done"}
+        disabled={pending || readOnly}
+        className="mt-0.5 shrink-0 text-slate-400 transition hover:text-glow-300 disabled:opacity-50 disabled:hover:text-slate-400"
+        title={readOnly ? (task.done ? "Done" : "Open") : task.done ? "Mark as not done" : "Mark as done"}
       >
         {pending ? (
           <Loader2 className="h-5 w-5 animate-spin" />

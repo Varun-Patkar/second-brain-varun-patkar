@@ -252,7 +252,27 @@ export function App() {
     );
   }
 
-  if (auth === "anon" || !session) return <Login />;
+  if (auth === "anon" || !session) {
+    // Anonymous visitors get read-only access to the public knowledge views
+    // (brain viewer + tasks) so anyone can explore the brain without signing in.
+    // Everything agentic — chat, providers, config, history, secrets, and any
+    // writes — stays behind the owner-only GitHub login.
+    if (view === "brain" || view === "tasks") {
+      return (
+        <Suspense
+          fallback={
+            <div className="grid h-full place-items-center">
+              <div className="h-10 w-10 animate-spin rounded-full border-2 border-glow-500/30 border-t-glow-400" />
+            </div>
+          }
+        >
+          {view === "brain" && <BrainViewer onBack={backToChat} readOnly />}
+          {view === "tasks" && <TasksPage onBack={backToChat} readOnly />}
+        </Suspense>
+      );
+    }
+    return <Login />;
+  }
 
   if (view === "brain" || view === "tasks" || view === "config") {
     return (

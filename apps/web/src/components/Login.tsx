@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Brain, Github, Loader2 } from "lucide-react";
+import { Brain, Github, Loader2, FolderTree, ListTodo } from "lucide-react";
 import { getLoginUrl } from "../api.js";
 
 export function Login() {
@@ -42,7 +42,8 @@ export function Login() {
           <span className="text-gradient">Second Brain</span>
         </h1>
         <p className="mb-8 text-sm text-slate-400">
-          Your private, ever-evolving knowledge base. Only you can sign in.
+          Your private, ever-evolving knowledge base. Only the owner can sign in —
+          but anyone can explore the brain and tasks, read-only.
         </p>
 
         <button
@@ -55,6 +56,31 @@ export function Login() {
         </button>
 
         {error && <p className="mt-4 text-sm text-rose-400">{error}</p>}
+
+        {/* Public, read-only entry points: no sign-in required. */}
+        <div className="mt-6 border-t border-white/10 pt-5">
+          <p className="mb-3 text-xs uppercase tracking-wide text-slate-500">Explore without signing in</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                window.location.hash = "#brain";
+              }}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+            >
+              <FolderTree className="h-4 w-4" />
+              Brain
+            </button>
+            <button
+              onClick={() => {
+                window.location.hash = "#tasks";
+              }}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+            >
+              <ListTodo className="h-4 w-4" />
+              Tasks
+            </button>
+          </div>
+        </div>
       </motion.div>
     </div>
   );
