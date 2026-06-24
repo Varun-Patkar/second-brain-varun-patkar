@@ -98,4 +98,30 @@ export default class Ajv {
     fn.errors = null;
     return fn;
   }
+
+  /**
+   * Ajv caches compiled schemas by `$id` and exposes them via `getSchema`. We do
+   * not cache, so always report a miss — the caller then falls back to `compile`.
+   * Required by the MCP SDK's `AjvJsonSchemaValidator.getValidator`.
+   */
+  getSchema(_id: string): ValidateFn | undefined {
+    return undefined;
+  }
+
+  /**
+   * Render collected errors as a single human-readable line. Mirrors Ajv's
+   * `errorsText`, used by the MCP SDK when a payload fails validation.
+   */
+  errorsText(errors?: AjvError[] | null): string {
+    if (!errors || errors.length === 0) return "No errors";
+    return errors.map((e) => `data${e.instancePath} ${e.message}`).join(", ");
+  }
+
+  /** Ajv's chainable `addKeyword`/`addFormat` no-ops (we ignore custom keywords). */
+  addKeyword(): this {
+    return this;
+  }
+  addFormat(): this {
+    return this;
+  }
 }

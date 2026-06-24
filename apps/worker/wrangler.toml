@@ -7,8 +7,12 @@ compatibility_flags = ["nodejs_compat"]
 # Replace Ajv (the framework's tool-argument validator) with an interpreter-based
 # shim. Ajv compiles schemas via `new Function`, which the Workers runtime forbids,
 # so without this every tool call fails with "Code generation from strings disallowed".
+# `ajv-formats` is likewise neutralized: the MCP SDK's default validator calls
+# `addFormats(ajv)`, which pokes Ajv internals our shim lacks and crashes every MCP
+# `connect()` in the Workers runtime ("reading 'code'").
 [alias]
 "ajv" = "./src/ajv-shim.ts"
+"ajv-formats" = "./src/ajv-formats-shim.ts"
 
 # --- Non-secret vars (safe to commit). Secrets are set via `wrangler secret put`. ---
 [vars]
