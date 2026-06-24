@@ -274,6 +274,19 @@ export interface McpServerConfig {
   url: string;
   /** Whether the server's tools are enabled. Defaults to true. */
   enabled?: boolean;
+  /**
+   * Wire transport for the remote endpoint. `"http"` (Streamable HTTP, the
+   * default) or `"sse"` for legacy Server-Sent Events servers. Mirrors the
+   * `type` field of a standard `mcp.json` HTTP server entry.
+   */
+  type?: "http" | "sse";
+  /**
+   * Custom request headers (auth tokens, API keys, content versions, …). Values
+   * may reference a stored secret as `{{secret:NAME}}`, resolved server-side at
+   * connect time so the plaintext never lives on the brain branch or reaches the
+   * model. Mirrors the `headers` object of a standard `mcp.json` HTTP entry.
+   */
+  headers?: Record<string, string>;
 }
 
 /** A skill bundle (name + description + markdown body). */

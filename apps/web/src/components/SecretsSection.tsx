@@ -6,19 +6,32 @@
  * secret — it can never read a stored value back. The show/hide toggle reveals
  * only what the user is CURRENTLY typing, not any stored value.
  *
- * Reference a secret elsewhere (e.g. in an MCP server URL) as `{{secret:NAME}}`;
- * it is resolved server-side at the point of use.
+ * Reference a secret elsewhere (e.g. in an MCP server URL or header) as
+ * `{{secret:NAME}}`; it is resolved server-side at the point of use.
+ *
+ * The secret-name list is owned by the parent ConfigPage (so the MCP header
+ * picker can share it); this component renders that list and mutates it through
+ * the secrets API, calling `onReload` after a change. In read-only mode the
+ * section is greyed out and no secret data is shown or fetched.
  *
  * @packageDocumentation
  */
 
-import { useEffect, useState } from "react";
-import { Plus, Trash2, Loader2, KeyRound, Eye, EyeOff, Save, Check } from "lucide-react";
-import { deleteSecret, getSecretNames, putSecret } from "../api.js";
+import { useState } from "react";
+import { Plus, Trash2, Loader2, KeyRound, Eye, EyeOff, Save, Check, Lock } from "lucide-react";
+import { deleteSecret, putSecret } from "../api.js";
 
-export function SecretsSection() {
-  const [loading, setLoading] = useState(true);
-  const [names, setNames] = useState<string[]>([]);
+export function SecretsSection({
+  names,
+  loading,
+  readOnly,
+  onReload,
+}: {
+  names: string[];
+  loading: boolean;
+  readOnly?: boolean;
+  onReload: () => void;
+}) {
   const [error, setError] = useState<string | null>(null);
   // The name currently being edited (existing) — shows an inline value input.
   const [editing, setEditing] = useState<string | null>(null);
@@ -26,34 +39,39 @@ export function SecretsSection() {
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
 
-  const load = (): void => {
-    setLoading(true);
-    setError(null);
-    getSecretNames()
-      .then(setNames)
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load secrets"))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(load, []);
-
-  const onSaved = (name: string): void => {
+  const onSaved = (): void => {
     setEditing(null);
     setAdding(false);
     setNewName("");
-    setNames((prev) => (prev.includes(name) ? prev : [...prev, name].sort((a, b) => a.localeCompare(b))));
+    onReload();
   };
 
   const onDelete = async (name: string): Promise<void> => {
     setError(null);
     try {
       await deleteSecret(name);
-      setNames((prev) => prev.filter((n) => n !== name));
       if (editing === name) setEditing(null);
+      onReload();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to delete secret");
     }
   };
+
+  // Read-only visitors see a locked, greyed placeholder — no names, no API calls.
+  if (readOnly) {
+    return (
+      <section className="opacity-60">
+        <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-300">
+          <KeyRound className="h-4 w-4" />
+          Secrets
+        </div>
+        <div className="flex items-center gap-2 rounded-xl border border-dashed border-white/10 px-3 py-4 text-xs text-slate-500">
+          <Lock className="h-4 w-4" />
+          Secrets are hidden in read-only mode and are only visible to the signed-in owner.
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section>
@@ -64,7 +82,8 @@ export function SecretsSection() {
       <p className="mb-3 text-xs text-slate-500">
         Stored encrypted on the server and never sent to the model or saved to the wiki. Reference one
         as <code className="rounded bg-black/40 px-1 text-aqua-400">{"{{secret:NAME}}"}</code> in an MCP
-        server URL. Values are write-only — they can be overwritten or deleted, never read back.
+        server URL, a header, or skill content. Values are write-only — they can be overwritten or
+        deleted, never read back.
       </p>
 
       {error && <div className="mb-2 text-xs text-amber-400">{error}</div>}
@@ -101,7 +120,7 @@ export function SecretsSection() {
                 </button>
               </div>
               {editing === name && (
-                <SecretValueEditor name={name} onSaved={() => onSaved(name)} onError={setError} />
+                <SecretValueEditor name={name} onSaved={onSaved} onError={setError} />
               )}
             </div>
           ))}
@@ -119,7 +138,7 @@ export function SecretsSection() {
               {newName.trim() && /^[A-Za-z0-9_.-]{1,64}$/.test(newName.trim()) ? (
                 <SecretValueEditor
                   name={newName.trim()}
-                  onSaved={() => onSaved(newName.trim())}
+                  onSaved={onSaved}
                   onError={setError}
                   onCancel={() => {
                     setAdding(false);

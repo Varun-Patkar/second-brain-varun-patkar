@@ -95,6 +95,9 @@ export function App() {
   });
   // GitHub repo URL (for the external link button).
   const [repoUrl, setRepoUrl] = useState<string | undefined>(undefined);
+  // A composer draft seeded by "Declare via agent" — bumping the nonce re-applies
+  // the text into the composer even if it matches the previous draft.
+  const [draft, setDraft] = useState<{ text: string; nonce: number } | null>(null);
   const chat = useChat();
   const { conn, test } = useProviderConnection(cfg, auth === "authed");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -233,6 +236,15 @@ export function App() {
     setView("chat");
   };
 
+  // "Declare via agent": start a fresh conversation, drop the user into the chat
+  // view, and pre-fill the composer with a prompt describing the MCP server/skill
+  // they want the agent to add (they finish the details, then send).
+  const declareViaAgent = (prompt: string): void => {
+    newChat();
+    setDraft({ text: prompt, nonce: Date.now() });
+    backToChat();
+  };
+
   const signOut = () => {
     clearToken();
     setSession(null);
@@ -254,10 +266,10 @@ export function App() {
 
   if (auth === "anon" || !session) {
     // Anonymous visitors get read-only access to the public knowledge views
-    // (brain viewer + tasks) so anyone can explore the brain without signing in.
-    // Everything agentic — chat, providers, config, history, secrets, and any
+    // (brain viewer + tasks + config) so anyone can explore the brain without
+    // signing in. Everything agentic — chat, providers, history, secrets, and any
     // writes — stays behind the owner-only GitHub login.
-    if (view === "brain" || view === "tasks") {
+    if (view === "brain" || view === "tasks" || view === "config") {
       return (
         <Suspense
           fallback={
@@ -268,6 +280,7 @@ export function App() {
         >
           {view === "brain" && <BrainViewer onBack={backToChat} readOnly />}
           {view === "tasks" && <TasksPage onBack={backToChat} readOnly />}
+          {view === "config" && <ConfigPage onBack={() => (window.location.href = window.location.pathname)} readOnly />}
         </Suspense>
       );
     }
@@ -285,7 +298,7 @@ export function App() {
       >
         {view === "brain" && <BrainViewer onBack={backToChat} />}
         {view === "tasks" && <TasksPage onBack={backToChat} />}
-        {view === "config" && <ConfigPage onBack={backToChat} />}
+        {view === "config" && <ConfigPage onBack={backToChat} onDeclareViaAgent={declareViaAgent} />}
       </Suspense>
     );
   }
@@ -348,6 +361,7 @@ export function App() {
             connected={conn.status === "ok"}
             sttUrl={cfg.sttUrl}
             visionEnabled={configSupportsVision(cfg)}
+            {...(draft ? { draft } : {})}
             onSend={(text, images) => chat.send(text, cfg, images)}
             onStop={chat.stop}
             onError={chat.setError}

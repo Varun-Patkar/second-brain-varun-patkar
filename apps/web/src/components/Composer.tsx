@@ -1,6 +1,6 @@
 /** Message composer with send / stop, voice input (STT), and image attachments. */
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowUp, Square, Mic, ImagePlus, X, Loader2, Sparkles } from "lucide-react";
 import type { ChatImage } from "@second-brain/shared";
@@ -23,6 +23,7 @@ export function Composer({
   connected,
   sttUrl,
   visionEnabled,
+  draft,
   onSend,
   onStop,
   onError,
@@ -35,6 +36,11 @@ export function Composer({
   sttUrl: string;
   /** Whether the selected model accepts images; gates the attach button. */
   visionEnabled: boolean;
+  /**
+   * An externally-seeded composer draft (e.g. "Declare via agent"). Each new
+   * `nonce` re-applies `text` into the input, even if the text is unchanged.
+   */
+  draft?: { text: string; nonce: number };
   onSend: (text: string, images: ChatImage[]) => void;
   onStop: () => void;
   /** Surface composer-level errors (mic/transcription/attachment) to the UI. */
@@ -44,6 +50,19 @@ export function Composer({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Apply an externally-seeded draft (keyed by nonce) into the composer + focus.
+  useEffect(() => {
+    if (!draft) return;
+    setText(draft.text);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el) {
+        el.focus();
+        el.setSelectionRange(draft.text.length, draft.text.length);
+      }
+    });
+  }, [draft?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
   // Quick-prompt popover: opened by the button, or implicitly while the input
   // starts with "/" (which also filters the list by what follows the slash).
   const [showPrompts, setShowPrompts] = useState(false);

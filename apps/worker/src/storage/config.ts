@@ -71,6 +71,53 @@ function parseSkill(path: string, raw: string): LoadedSkill | null {
 }
 
 /**
+ * Normalize one raw MCP entry into a clean {@link McpServerConfig}, keeping only
+ * the supported fields. `id` may come from the entry itself or (for object-map
+ * formats) from the map key.
+ */
+function normalizeMcpEntry(id: string, raw: unknown): McpServerConfig | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const url = typeof r.url === "string" ? r.url : "";
+  const finalId = (typeof r.id === "string" && r.id) || id;
+  if (!finalId || !url) return null;
+  const out: McpServerConfig = { id: finalId, url, enabled: r.enabled !== false };
+  if (r.type === "http" || r.type === "sse") out.type = r.type;
+  if (r.headers && typeof r.headers === "object") {
+    const headers: Record<string, string> = {};
+    for (const [k, v] of Object.entries(r.headers as Record<string, unknown>)) {
+      if (typeof v === "string") headers[k] = v;
+    }
+    if (Object.keys(headers).length > 0) out.headers = headers;
+  }
+  return out;
+}
+
+/**
+ * Parse the `mcp.json` document, tolerating the three shapes a human or the agent
+ * might write: the internal array form (`{ servers: [{ id, url, … }] }`), an
+ * object-map under `servers` (`{ servers: { id: { url, … } } }`), and the
+ * standard `mcp.json` map (`{ mcpServers: { id: { url, … } } }`).
+ */
+function parseMcpDocument(text: string): McpServerConfig[] {
+  const doc = JSON.parse(text) as Record<string, unknown>;
+  const source = doc.servers ?? doc.mcpServers;
+  const out: McpServerConfig[] = [];
+  if (Array.isArray(source)) {
+    for (const entry of source) {
+      const cfg = normalizeMcpEntry("", entry);
+      if (cfg) out.push(cfg);
+    }
+  } else if (source && typeof source === "object") {
+    for (const [id, entry] of Object.entries(source as Record<string, unknown>)) {
+      const cfg = normalizeMcpEntry(id, entry);
+      if (cfg) out.push(cfg);
+    }
+  }
+  return out;
+}
+
+/**
  * Load the brain config (MCP servers + skills), preferring the KV cache. On a
  * cache miss it reads `mcp.json` and the `skills/` directory from git, charging
  * the per-turn budget for those reads, then caches the assembled result.
@@ -91,8 +138,7 @@ export async function loadBrainConfig(ctx: TurnContext): Promise<BrainConfig> {
   try {
     const mcpFile = await readFile(ctx, MCP_PATH);
     if (mcpFile) {
-      const parsed = JSON.parse(mcpFile.text) as { servers?: McpServerConfig[] };
-      config.mcpServers = (parsed.servers ?? []).filter((s) => s.id && s.url);
+      config.mcpServers = parseMcpDocument(mcpFile.text);
     }
   } catch (err) {
     ctx.emitTrace({ agent: "brain", detail: `mcp.json ignored: ${(err as Error).message}` });
@@ -122,7 +168,14 @@ export async function invalidateBrainConfig(ctx: TurnContext): Promise<void> {
 
 /** Serialize an MCP server list back to the `mcp.json` wire format. */
 export function serializeMcp(servers: McpServerConfig[]): string {
-  return `${JSON.stringify({ servers }, null, 2)}\n`;
+  const cleaned = servers.map((s) => ({
+    id: s.id,
+    url: s.url,
+    enabled: s.enabled !== false,
+    ...(s.type ? { type: s.type } : {}),
+    ...(s.headers && Object.keys(s.headers).length > 0 ? { headers: s.headers } : {}),
+  }));
+  return `${JSON.stringify({ servers: cleaned }, null, 2)}\n`;
 }
 
 /** Build the markdown content for a skill file. */
@@ -153,7 +206,13 @@ export async function applyConfigChanges(
   if (update.mcpServers) {
     const cleaned = update.mcpServers
       .filter((s) => s.id && s.url)
-      .map((s) => ({ id: s.id, url: s.url, enabled: s.enabled !== false }));
+      .map((s) => ({
+        id: s.id,
+        url: s.url,
+        enabled: s.enabled !== false,
+        ...(s.type ? { type: s.type } : {}),
+        ...(s.headers && Object.keys(s.headers).length > 0 ? { headers: s.headers } : {}),
+      }));
     writes.push({ path: MCP_PATH, content: serializeMcp(cleaned) });
     changed.push(MCP_PATH);
   }

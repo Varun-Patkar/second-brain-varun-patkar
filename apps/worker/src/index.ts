@@ -178,10 +178,12 @@ export default {
       return json(result, { status: 200 }, corsHeaders);
     }
 
-    // --- Brain config: read MCP servers + skills ---
+    // --- Brain config: read MCP servers + skills (public read) ---
+    // `mcp.json` + `skills/` already live on the public brain branch (exposed by
+    // the brain viewer), and any secret values are stored only as `{{secret:NAME}}`
+    // placeholders here, so the assembled config is safe to serve read-only to
+    // anonymous visitors. Secret VALUES remain behind the owner-only /secrets route.
     if (url.pathname === "/config" && req.method === "GET") {
-      const session = await authed(env, req);
-      if (!session) return json({ error: "unauthorized" }, { status: 401 }, corsHeaders);
       const ctx = createTurnContext(env, () => {});
       // Always read the latest from git, bypassing a stale KV cache for the UI.
       await invalidateBrainConfig(ctx);

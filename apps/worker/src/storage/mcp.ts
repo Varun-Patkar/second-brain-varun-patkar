@@ -16,6 +16,23 @@ import type { TurnContext } from "../runtime/context.js";
 import type { McpServerConfig } from "./config.js";
 import { resolveSecrets } from "./secrets.js";
 
+/**
+ * Resolve `{{secret:NAME}}` references inside every header value, dropping any
+ * that resolve to empty so a blank auth header is never sent. Returned as a
+ * plain record the framework's header callback can hand to the transport.
+ */
+async function resolveHeaderSecrets(
+  ctx: TurnContext,
+  headers: Record<string, string>,
+): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const [name, raw] of Object.entries(headers)) {
+    const value = await resolveSecrets(ctx, raw);
+    if (value) out[name] = value;
+  }
+  return out;
+}
+
 /** A live MCP connection plus the tools it contributed (for later cleanup). */
 export interface McpAttachment {
   tools: Tool[];
@@ -44,7 +61,19 @@ export async function attachMcpTools(
       // Inject any `{{secret:NAME}}` references in the URL server-side (e.g. an
       // auth token in a query param). Secrets never appear in traces/markdown.
       const url = await resolveSecrets(ctx, s.url);
-      const conn = await connectMCP({ id: s.id, transport: { kind: "remote", url } });
+      const headers = s.headers && Object.keys(s.headers).length > 0 ? s.headers : undefined;
+      const conn = await connectMCP({
+        id: s.id,
+        transport: {
+          kind: "remote",
+          url,
+          ...(s.type ? { type: s.type } : {}),
+          // Headers are resolved lazily via the framework's async callback so the
+          // decrypted secret values are only materialized at connect time and
+          // never persisted on the config object.
+          ...(headers ? { headers: () => resolveHeaderSecrets(ctx, headers) } : {}),
+        },
+      });
       await conn.connect();
       const serverTools = await conn.listTools();
       tools.push(...serverTools);
