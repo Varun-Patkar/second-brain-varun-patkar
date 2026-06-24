@@ -33,14 +33,27 @@ export async function tracedTool<T>(
     const value = await fn();
     const output = summarize ? summarize(value) : undefined;
     ctx.emitTool?.({ id, name, input, status: "ok", ...(output !== undefined ? { output } : {}) });
-    ctx.emitTrace({ agent: "brain", tool: name, detail: summaryText(output) });
+    ctx.emitTrace({ agent: "brain", tool: name, detail: truncate(summaryText(output)) });
     return value;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     ctx.emitTool?.({ id, name, input, status: "error", output: message });
-    ctx.emitTrace({ agent: "brain", tool: name, detail: `error: ${message}` });
+    ctx.emitTrace({ agent: "brain", tool: name, detail: truncate(`error: ${message}`) });
     throw err;
   }
+}
+
+/** Max characters of a tool's output shown in the agent-activity trace line. */
+const TRACE_DETAIL_MAX = 160;
+
+/**
+ * Shorten a trace detail to a single, compact line for the agent-activity panel.
+ * The FULL input/output stays available in the expandable tool-call card; the
+ * trace only needs a glanceable summary, so collapse whitespace and cap length.
+ */
+function truncate(detail: string): string {
+  const oneLine = detail.replace(/\s+/g, " ").trim();
+  return oneLine.length > TRACE_DETAIL_MAX ? `${oneLine.slice(0, TRACE_DETAIL_MAX)}…` : oneLine;
 }
 
 /** A compact one-line string of a tool's output for the trace panel. */
