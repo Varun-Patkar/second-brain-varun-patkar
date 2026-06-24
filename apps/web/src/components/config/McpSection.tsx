@@ -128,9 +128,11 @@ export function McpSection({
                   className="input resize-y font-mono text-xs"
                 />
                 <p className="text-[0.7rem] text-slate-500">
-                  Supports the standard <code className="text-aqua-400">mcpServers</code> map or a{" "}
-                  <code className="text-aqua-400">servers</code> array. Any raw secret in a header is moved into the
-                  secrets store and replaced with a <code className="text-aqua-400">{"{{secret:NAME}}"}</code> reference.
+                  Supports the standard <code className="text-aqua-400">mcpServers</code> map, a{" "}
+                  <code className="text-aqua-400">servers</code> array, or even a single pasted entry —
+                  comments and trailing commas are fixed automatically. Local (stdio) servers are skipped
+                  (remote only). Any raw secret in a header is moved into the secrets store and replaced
+                  with a <code className="text-aqua-400">{"{{secret:NAME}}"}</code> reference.
                 </p>
                 {importErr && <p className="text-xs text-amber-400">{importErr}</p>}
                 <button

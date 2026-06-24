@@ -53,6 +53,100 @@ export interface ParsedMcpImport {
   secrets: ExtractedSecret[];
 }
 
+/**
+ * Strip `//` line comments and block comments from a JSONC string, while leaving
+ * the contents of double-quoted strings untouched (so a `//` inside a URL value
+ * survives). Comments are a common copy-paste artifact from editor `mcp.json`.
+ */
+function stripJsonComments(input: string): string {
+  let out = "";
+  let inStr = false;
+  for (let i = 0; i < input.length; i++) {
+    const c = input[i];
+    const next = input[i + 1];
+    if (inStr) {
+      out += c;
+      if (c === "\\") {
+        out += next ?? "";
+        i++;
+      } else if (c === '"') {
+        inStr = false;
+      }
+      continue;
+    }
+    if (c === '"') {
+      inStr = true;
+      out += c;
+      continue;
+    }
+    if (c === "/" && next === "/") {
+      while (i < input.length && input[i] !== "\n") i++;
+      out += "\n";
+      continue;
+    }
+    if (c === "/" && next === "*") {
+      i += 2;
+      while (i < input.length && !(input[i] === "*" && input[i + 1] === "/")) i++;
+      i++; // skip the closing '/'
+      continue;
+    }
+    out += c;
+  }
+  return out;
+}
+
+/**
+ * Remove trailing commas (a comma immediately before a closing `}`/`]`), again
+ * skipping the inside of double-quoted strings. JSON forbids trailing commas but
+ * humans (and editor `mcp.json`) write them constantly.
+ */
+function stripTrailingCommas(input: string): string {
+  let out = "";
+  let inStr = false;
+  for (let i = 0; i < input.length; i++) {
+    const c = input[i];
+    if (inStr) {
+      out += c;
+      if (c === "\\") {
+        out += input[i + 1] ?? "";
+        i++;
+      } else if (c === '"') {
+        inStr = false;
+      }
+      continue;
+    }
+    if (c === '"') {
+      inStr = true;
+      out += c;
+      continue;
+    }
+    if (c === ",") {
+      let j = i + 1;
+      while (j < input.length && /\s/.test(input[j]!)) j++;
+      if (input[j] === "}" || input[j] === "]") continue; // drop the trailing comma
+    }
+    out += c;
+  }
+  return out;
+}
+
+/**
+ * Parse a possibly-messy JSON(C) document: tolerate comments, trailing commas,
+ * odd whitespace, and a bare object entry/fragment (e.g. a single
+ * `"name": { … }` pair copied without the surrounding braces) by wrapping it.
+ */
+function relaxedJsonParse(text: string): Record<string, unknown> {
+  let t = stripTrailingCommas(stripJsonComments(text)).trim();
+  // Wrap a bare `"key": { … }` fragment (or comma-separated fragments) so it
+  // becomes a valid object whose keys are server ids.
+  if (!t.startsWith("{") && !t.startsWith("[")) t = `{${t}}`;
+  // A trailing comma can still sit just before the (now outer) close brace, or at
+  // the very end of the document — clean both up.
+  t = stripTrailingCommas(t).replace(/,\s*$/, "");
+  return JSON.parse(t) as Record<string, unknown>;
+}
+
+
 /** Normalize a single raw entry (from any shape) into a `McpServerConfig`. */
 function normalizeEntry(id: string, raw: unknown): McpServerConfig | null {
   if (!raw || typeof raw !== "object") return null;
@@ -74,9 +168,11 @@ function normalizeEntry(id: string, raw: unknown): McpServerConfig | null {
 
 /**
  * Parse a pasted `mcp.json` document, tolerating the array form
- * (`{ servers: [...] }`), an object map (`{ servers: { id: {...} } }`), and the
- * standard `{ mcpServers: { id: {...} } }` shape. A bare single-server object is
- * also accepted. Throws if the text isn't valid JSON or yields no usable server.
+ * (`{ servers: [...] }`), an object map (`{ servers: { id: {...} } }`), the
+ * standard `{ mcpServers: { id: {...} } }` shape, a bare id→entry map (no wrapper
+ * key), a single-server object, and even a loose `"id": { ... }` fragment.
+ * Comments, trailing commas, and odd whitespace are corrected automatically.
+ * Throws only if the text still yields no usable server with a `url`.
  *
  * Any header value that looks like a raw secret (non-placeholder value under a
  * secret-like header name) is lifted into the returned `secrets` list and
@@ -84,8 +180,12 @@ function normalizeEntry(id: string, raw: unknown): McpServerConfig | null {
  * persist the secret and keep the brain branch free of plaintext.
  */
 export function parseMcpJson(text: string, existingSecretNames: string[] = []): ParsedMcpImport {
-  const doc = JSON.parse(text) as Record<string, unknown>;
-  const source = doc.servers ?? doc.mcpServers;
+  const doc = relaxedJsonParse(text);
+  // Prefer an explicit wrapper key; otherwise, if it isn't a bare single server,
+  // treat the whole document as an id→entry map (covers wrapped fragments and a
+  // pasted inner server map). Non-server keys (e.g. `inputs`) are skipped below.
+  let source: unknown = doc.servers ?? doc.mcpServers;
+  if (!source && typeof doc.url !== "string") source = doc;
   const servers: McpServerConfig[] = [];
 
   if (Array.isArray(source)) {
@@ -104,7 +204,8 @@ export function parseMcpJson(text: string, existingSecretNames: string[] = []): 
     if (cfg) servers.push(cfg);
   }
 
-  if (servers.length === 0) throw new Error("No MCP server with a 'url' found in the JSON.");
+  if (servers.length === 0) throw new Error("No remote MCP server with a 'url' found in the JSON.");
+
 
   // Lift raw secrets out of headers so the form only ever holds placeholders.
   const secrets: ExtractedSecret[] = [];

@@ -18,29 +18,74 @@ export function serializeSkillFile(skill: BrainSkill): string {
 }
 
 /**
- * Parse an uploaded skill markdown file back into a {@link BrainSkill}. Falls back
- * to the supplied filename (without extension) for the name when no frontmatter
- * `name` is present.
+ * Parse the `key: value` lines of a skill's frontmatter into a record, tolerating
+ * YAML block scalars (`key: >` folded / `key: |` literal, with optional `+`/`-`
+ * chomping) whose value continues on the following indented lines. Quotes around
+ * simple single-line values are stripped. Keys are lower-cased.
+ */
+function parseFrontmatterFields(block: string): Record<string, string> {
+  const lines = block.split("\n");
+  const fields: Record<string, string> = {};
+  let i = 0;
+  while (i < lines.length) {
+    const m = /^([A-Za-z0-9_-]+)[ \t]*:[ \t]*(.*)$/.exec(lines[i]!);
+    if (!m) {
+      i++;
+      continue;
+    }
+    const key = m[1]!.toLowerCase();
+    let value = m[2]!.trim();
+    if (/^[>|][+-]?$/.test(value)) {
+      // Block scalar: collect the following more-indented (or blank) lines.
+      const literal = value.startsWith("|");
+      const collected: string[] = [];
+      let indent = -1;
+      i++;
+      while (i < lines.length) {
+        const l = lines[i]!;
+        if (l.trim() === "") {
+          collected.push("");
+          i++;
+          continue;
+        }
+        const lead = l.length - l.trimStart().length;
+        if (indent === -1) indent = lead;
+        if (lead < indent) break; // dedent → next key / end of block
+        collected.push(l.slice(indent));
+        i++;
+      }
+      while (collected.length && collected[collected.length - 1] === "") collected.pop();
+      value = literal ? collected.join("\n") : collected.join(" ").replace(/\s+/g, " ").trim();
+    } else {
+      value = value.replace(/^["']|["']$/g, "");
+      i++;
+    }
+    fields[key] = value;
+  }
+  return fields;
+}
+
+/**
+ * Parse an uploaded skill markdown file back into a {@link BrainSkill}, tolerating
+ * messy formatting: a leading BOM, Windows (CRLF) line endings, blank lines or
+ * spaces around the `---` fences, `key : value` frontmatter with arbitrary
+ * spacing, and YAML block-scalar descriptions (`description: >` spanning several
+ * indented lines). Falls back to the supplied filename (without extension) for
+ * the name when no frontmatter `name` is present.
  */
 export function parseSkillFile(raw: string, fallbackName = "skill"): BrainSkill {
-  const text = raw.replace(/^\uFEFF/, "");
+  const text = raw.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  let body = text.trimStart();
   let name = fallbackName;
   let description = "";
-  let body = text;
-  if (text.startsWith("---")) {
-    const end = text.indexOf("\n---", 3);
-    if (end !== -1) {
-      const header = text.slice(3, end);
-      body = text.slice(end + 4).replace(/^\n+/, "");
-      for (const line of header.split("\n")) {
-        const idx = line.indexOf(":");
-        if (idx === -1) continue;
-        const key = line.slice(0, idx).trim();
-        const value = line.slice(idx + 1).trim().replace(/^"|"$/g, "");
-        if (key === "name") name = value || fallbackName;
-        if (key === "description") description = value;
-      }
-    }
+  // Match an opening `---` fence (allowing trailing spaces), the frontmatter
+  // block, and a closing `---` fence.
+  const fm = /^---[ \t]*\n([\s\S]*?)\n---[ \t]*\n?/.exec(body);
+  if (fm) {
+    body = body.slice(fm[0].length).replace(/^\n+/, "");
+    const fields = parseFrontmatterFields(fm[1]!);
+    if (fields.name) name = fields.name;
+    if (fields.description) description = fields.description;
   }
   return { name, description: description || name, content: body };
 }
