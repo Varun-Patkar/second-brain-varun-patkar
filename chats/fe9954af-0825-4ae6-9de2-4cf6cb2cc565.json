@@ -2,7 +2,7 @@
   "id": "fe9954af-0825-4ae6-9de2-4cf6cb2cc565",
   "title": "Add a mcp config for webiq \"WebIQ-MCP\": { \"url\": \"https:/…",
   "createdAt": "2026-06-24T08:36:37.710Z",
-  "updatedAt": "2026-06-24T08:36:37.710Z",
+  "updatedAt": "2026-06-24T08:37:14.058Z",
   "messages": [
     {
       "role": "user",
@@ -55,6 +55,64 @@
         "subrequestsUsed": 6,
         "llmCalls": 0,
         "gitCalls": 6,
+        "d1Calls": 0,
+        "dirtySetSize": 0,
+        "toolsEnabled": 5,
+        "skillsEnabled": 0,
+        "tokenLimit": 200000
+      }
+    },
+    {
+      "role": "user",
+      "content": "remove it"
+    },
+    {
+      "role": "assistant",
+      "content": "Since `mcpServers` replaces the full list, and WebIQ-MCP was the only server added, I'll clear the list now.Done! **WebIQ-MCP** has been removed from your MCP server config.",
+      "segments": [
+        {
+          "type": "text",
+          "text": "Since `mcpServers` replaces the full list, and WebIQ-MCP was the only server added, I'll clear the list now."
+        },
+        {
+          "type": "tool",
+          "call": {
+            "id": "call_d1ad254f77334d1084b9d57a0484f2bc",
+            "name": "write_config",
+            "input": {
+              "mcpServers": []
+            },
+            "status": "ok",
+            "output": {
+              "changed": [
+                "mcp.json"
+              ]
+            }
+          }
+        },
+        {
+          "type": "text",
+          "text": "Done! **WebIQ-MCP** has been removed from your MCP server config."
+        }
+      ],
+      "trace": [
+        {
+          "agent": "brain",
+          "tool": "mcp",
+          "detail": "WebIQ-MCP unavailable: Failed to connect to MCP server: Cannot read properties of undefined (reading 'code')",
+          "at": "2026-06-24T08:36:58.577Z"
+        },
+        {
+          "agent": "brain",
+          "tool": "write_config",
+          "detail": "{\"changed\":[\"mcp.json\"]}",
+          "at": "2026-06-24T08:37:12.167Z"
+        }
+      ],
+      "metrics": {
+        "subrequestsUsed": 9,
+        "llmCalls": 0,
+        "gitCalls": 9,
         "d1Calls": 0,
         "dirtySetSize": 0,
         "toolsEnabled": 5,
