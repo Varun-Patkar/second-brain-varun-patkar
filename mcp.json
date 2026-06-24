@@ -1,3 +1,13 @@
 {
-  "servers": []
+  "servers": [
+    {
+      "id": "WebIQ-MCP",
+      "url": "https://api.microsoft.ai/v3/mcp",
+      "enabled": true,
+      "type": "http",
+      "headers": {
+        "x-apikey": "{{secret:WebIQ-MCP_x-apikey}}"
+      }
+    }
+  ]
 }
