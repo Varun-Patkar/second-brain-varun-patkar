@@ -1,0 +1,66 @@
+{
+  "id": "fe9954af-0825-4ae6-9de2-4cf6cb2cc565",
+  "title": "Add a mcp config for webiq \"WebIQ-MCP\": { \"url\": \"https:/…",
+  "createdAt": "2026-06-24T08:36:37.710Z",
+  "updatedAt": "2026-06-24T08:36:37.710Z",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Add a mcp config for webiq\n\"WebIQ-MCP\": {\n\t\t\t\"url\": \"https://api.microsoft.ai/v3/mcp\",\n\t\t\t\"type\": \"http\",\n\t\t\t\"headers\": {\n\t\t\t\t\"x-apikey\": \"'<secret>\",\n\t\t\t},\n\t\t},"
+    },
+    {
+      "role": "assistant",
+      "content": "I'll add the WebIQ MCP server to your config now. Note that the `write_config` tool only supports `id`, `url`, and `enabled` fields — **custom headers (like `x-apikey`) are not supported** in the config schema, so that header cannot be stored here.Done! Here's a summary of what was saved:\n\n- ✅ **WebIQ-MCP** added as a remote MCP server pointing to `https://api.microsoft.ai/v3/mcp` (enabled).\n- ⚠️ **`x-apikey` header was not stored** — the MCP config schema only supports `id`, `url`, and `enabled`. You'll need to pass the API key another way (e.g. via an environment variable or a proxy that injects the header).",
+      "segments": [
+        {
+          "type": "text",
+          "text": "I'll add the WebIQ MCP server to your config now. Note that the `write_config` tool only supports `id`, `url`, and `enabled` fields — **custom headers (like `x-apikey`) are not supported** in the config schema, so that header cannot be stored here."
+        },
+        {
+          "type": "tool",
+          "call": {
+            "id": "call_5e81ab832abd408985a645be585c1d31",
+            "name": "write_config",
+            "input": {
+              "mcpServers": [
+                {
+                  "id": "WebIQ-MCP",
+                  "url": "https://api.microsoft.ai/v3/mcp",
+                  "enabled": true
+                }
+              ]
+            },
+            "status": "ok",
+            "output": {
+              "changed": [
+                "mcp.json"
+              ]
+            }
+          }
+        },
+        {
+          "type": "text",
+          "text": "Done! Here's a summary of what was saved:\n\n- ✅ **WebIQ-MCP** added as a remote MCP server pointing to `https://api.microsoft.ai/v3/mcp` (enabled).\n- ⚠️ **`x-apikey` header was not stored** — the MCP config schema only supports `id`, `url`, and `enabled`. You'll need to pass the API key another way (e.g. via an environment variable or a proxy that injects the header)."
+        }
+      ],
+      "trace": [
+        {
+          "agent": "brain",
+          "tool": "write_config",
+          "detail": "{\"changed\":[\"mcp.json\"]}",
+          "at": "2026-06-24T08:36:33.259Z"
+        }
+      ],
+      "metrics": {
+        "subrequestsUsed": 6,
+        "llmCalls": 0,
+        "gitCalls": 6,
+        "d1Calls": 0,
+        "dirtySetSize": 0,
+        "toolsEnabled": 5,
+        "skillsEnabled": 0,
+        "tokenLimit": 200000
+      }
+    }
+  ]
+}
