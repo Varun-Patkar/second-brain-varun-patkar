@@ -15,6 +15,54 @@ import type { Tool } from "agent-framework-js/tools";
 import type { TurnContext } from "../runtime/context.js";
 import type { McpServerConfig } from "./config.js";
 import { resolveSecrets } from "./secrets.js";
+import { tracedTool } from "../runtime/toolTrace.js";
+
+/**
+ * Reduce an MCP tool result to a concise, human-readable value for the tool-call
+ * card + trace. MCP results usually look like `{ content: [{ type: "text", text }] }`;
+ * surface that text when present, else the raw result, capped so a large payload
+ * never bloats the persisted chat record.
+ */
+function summarizeMcpResult(result: unknown): unknown {
+  const cap = (s: string): string => (s.length > 6000 ? `${s.slice(0, 6000)}… (truncated)` : s);
+  try {
+    const r = result as { content?: Array<{ type?: string; text?: string }> };
+    if (r && Array.isArray(r.content)) {
+      const text = r.content
+        .map((p) => (typeof p?.text === "string" ? p.text : JSON.stringify(p)))
+        .join("\n");
+      return cap(text);
+    }
+    return cap(typeof result === "string" ? result : JSON.stringify(result));
+  } catch {
+    return "done";
+  }
+}
+
+/**
+ * Wrap an MCP tool so each invocation flows through {@link tracedTool}: it charges
+ * the per-turn budget (every MCP call is a subrequest) and emits the structured
+ * tool-call lifecycle (input → output) that renders as an expandable card, shows
+ * in agent activity, and is persisted to the chat history — exactly like the
+ * brain's own tools.
+ */
+function traceMcpTool(ctx: TurnContext, tool: Tool): Tool {
+  return {
+    ...tool,
+    run: (args: unknown) =>
+      tracedTool(
+        ctx,
+        tool.name,
+        args,
+        () => {
+          // Each MCP tool call hits the network → charge the subrequest budget.
+          ctx.budget.git();
+          return tool.run(args);
+        },
+        summarizeMcpResult,
+      ),
+  };
+}
 
 /**
  * Resolve `{{secret:NAME}}` references inside every header value, dropping any
@@ -76,7 +124,9 @@ export async function attachMcpTools(
       });
       await conn.connect();
       const serverTools = await conn.listTools();
-      tools.push(...serverTools);
+      // Wrap each MCP tool so its calls show as expandable cards + agent activity
+      // and are persisted to chat history, like the brain's own tools.
+      tools.push(...serverTools.map((t) => traceMcpTool(ctx, t)));
       connections.push(conn);
       ctx.emitTrace({ agent: "brain", tool: "mcp", detail: `${s.id}: ${serverTools.length} tool(s)` });
     } catch (err) {
