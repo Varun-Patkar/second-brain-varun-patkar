@@ -1,0 +1,9 @@
+{
+  "servers": [
+    {
+      "id": "WebIQ-MCP",
+      "url": "https://api.microsoft.ai/v3/mcp",
+      "enabled": true
+    }
+  ]
+}
