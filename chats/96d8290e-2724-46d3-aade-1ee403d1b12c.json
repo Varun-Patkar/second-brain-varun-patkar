@@ -1,0 +1,62 @@
+{
+  "id": "96d8290e-2724-46d3-aade-1ee403d1b12c",
+  "title": "is webiq working?",
+  "createdAt": "2026-06-24T15:47:17.748Z",
+  "updatedAt": "2026-06-24T15:47:17.748Z",
+  "messages": [
+    {
+      "role": "user",
+      "content": "is webiq working?"
+    },
+    {
+      "role": "assistant",
+      "content": "I don't have any information about **WebIQ** stored in your brain. Could you give me a bit more context?\n\n- Is this a project you're working on, a tool/service you use, or something else?\n- What aspect are you checking — is it a website that's down, a software system, a deployment, etc.?\n\nOnce you clarify, I can either help you troubleshoot or save relevant details for future reference.",
+      "segments": [
+        {
+          "type": "tool",
+          "call": {
+            "id": "call_926a841a3b224ca3a92ed23085cd48fa",
+            "name": "graph_search",
+            "input": {
+              "query": "webiq",
+              "k": 5
+            },
+            "status": "ok",
+            "output": {
+              "count": 0,
+              "titles": []
+            }
+          }
+        },
+        {
+          "type": "text",
+          "text": "I don't have any information about **WebIQ** stored in your brain. Could you give me a bit more context?\n\n- Is this a project you're working on, a tool/service you use, or something else?\n- What aspect are you checking — is it a website that's down, a software system, a deployment, etc.?\n\nOnce you clarify, I can either help you troubleshoot or save relevant details for future reference."
+        }
+      ],
+      "trace": [
+        {
+          "agent": "brain",
+          "tool": "mcp",
+          "detail": "WebIQ-MCP unavailable: Failed to connect to MCP server: Cannot read properties of undefined (reading 'code')",
+          "at": "2026-06-24T15:47:11.164Z"
+        },
+        {
+          "agent": "brain",
+          "tool": "graph_search",
+          "detail": "{\"count\":0,\"titles\":[]}",
+          "at": "2026-06-24T15:47:14.538Z"
+        }
+      ],
+      "metrics": {
+        "subrequestsUsed": 6,
+        "llmCalls": 0,
+        "gitCalls": 5,
+        "d1Calls": 1,
+        "dirtySetSize": 0,
+        "toolsEnabled": 5,
+        "skillsEnabled": 1,
+        "tokenLimit": 200000
+      }
+    }
+  ]
+}
