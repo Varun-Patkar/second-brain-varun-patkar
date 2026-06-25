@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Brain, Github, Loader2, FolderTree, ListTodo } from "lucide-react";
+import {
+  Brain,
+  Github,
+  Loader2,
+  FolderTree,
+  ListTodo,
+  Settings,
+} from "lucide-react";
 import { getLoginUrl } from "../api.js";
 
 export function Login() {
@@ -43,7 +50,7 @@ export function Login() {
         </h1>
         <p className="mb-8 text-sm text-slate-400">
           Varun Patkar's ever-evolving knowledge base. Only Varun can sign in —
-          but anyone can explore the brain and tasks, read-only.
+          but anyone can explore the brain, tasks, and config, read-only.
         </p>
 
         <button
@@ -51,7 +58,11 @@ export function Login() {
           disabled={loading}
           className="group inline-flex w-full items-center justify-center gap-3 rounded-xl bg-white/90 px-5 py-3 font-semibold text-ink-950 transition hover:bg-white disabled:opacity-60"
         >
-          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Github className="h-5 w-5" />}
+          {loading ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <Github className="h-5 w-5" />
+          )}
           {loading ? "Redirecting…" : "Continue with GitHub"}
         </button>
 
@@ -59,7 +70,9 @@ export function Login() {
 
         {/* Public, read-only entry points: no sign-in required. */}
         <div className="mt-6 border-t border-white/10 pt-5">
-          <p className="mb-3 text-xs uppercase tracking-wide text-slate-500">Explore without signing in</p>
+          <p className="mb-3 text-xs uppercase tracking-wide text-slate-500">
+            Explore without signing in
+          </p>
           <div className="flex gap-2">
             <button
               onClick={() => {
@@ -78,6 +91,15 @@ export function Login() {
             >
               <ListTodo className="h-4 w-4" />
               Tasks
+            </button>
+            <button
+              onClick={() => {
+                window.location.hash = "#config";
+              }}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+            >
+              <Settings className="h-4 w-4" />
+              Config
             </button>
           </div>
         </div>
