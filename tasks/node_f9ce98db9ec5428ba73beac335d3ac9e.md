@@ -4,10 +4,11 @@ type: task
 title: "Build Windows Activity Time Tracker"
 summary: "Build always-on Windows app to track YouTube/gaming/work time with daily, weekly, monthly reports including phone YouTube via API."
 createdAt: 2026-06-25T15:48:13.426Z
-updatedAt: 2026-06-25T15:48:13.426Z
+updatedAt: 2026-06-25T15:48:35.899Z
 startDate: 2026-06-27
 tags: ["windows", "productivity", "tracking", "youtube-api", "side-project"]
 edges:
+  - { to: node_a2e9a0111844439d9d203baca4cdef70, type: part_of }
   - { to: node_3c1c1233d8994e6c9c5753eeb0d13090, type: authored_by }
 ---
 
