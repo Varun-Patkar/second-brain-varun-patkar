@@ -439,6 +439,7 @@ export function App() {
           if (id === chat.chatId) newChat();
         }}
         currentChatId={chat.chatId}
+        refreshKey={chat.chatsVersion}
       />
     </div>
   );

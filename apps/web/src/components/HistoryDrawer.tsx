@@ -19,6 +19,7 @@ export function HistoryDrawer({
   onNewChat,
   onDeleted,
   currentChatId,
+  refreshKey,
 }: {
   open: boolean;
   onClose: () => void;
@@ -27,6 +28,8 @@ export function HistoryDrawer({
   /** Called after a chat is deleted (id of the removed chat). */
   onDeleted: (id: string) => void;
   currentChatId: string | null;
+  /** Changes whenever a turn is persisted, prompting a re-sync of the chat list. */
+  refreshKey?: number;
 }) {
   const [loading, setLoading] = useState(false);
   const [chats, setChats] = useState<ChatSummary[]>([]);
@@ -38,7 +41,7 @@ export function HistoryDrawer({
     listChats()
       .then((r) => setChats(r.chats))
       .finally(() => setLoading(false));
-  }, [open]);
+  }, [open, refreshKey]);
 
   const onDelete = async (id: string) => {
     setDeletingId(id);

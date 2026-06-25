@@ -63,6 +63,16 @@ export function Composer({
       }
     });
   }, [draft?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-grow the textarea to fit its content (capped by the CSS max-height, which
+  // then takes over with an internal scrollbar). Runs on every text change,
+  // including programmatic ones (drafts, quick-prompt inserts, STT, clear-on-send).
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [text]);
   // Quick-prompt popover: opened by the button, or implicitly while the input
   // starts with "/" (which also filters the list by what follows the slash).
   const [showPrompts, setShowPrompts] = useState(false);
@@ -286,7 +296,7 @@ export function Composer({
                   ? "Listening… tap the square to transcribe"
                   : "Ask, or dump knowledge into your brain…"
           }
-          className="max-h-40 flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-slate-200 outline-none placeholder:text-slate-600 disabled:opacity-60"
+          className="max-h-60 flex-1 resize-none overflow-y-auto scroll-thin bg-transparent px-3 py-2.5 text-sm text-slate-200 outline-none placeholder:text-slate-600 disabled:opacity-60"
         />
 
         {streaming ? (

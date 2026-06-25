@@ -20,8 +20,30 @@ import type { ChatMessage, ProviderConfig } from "../types.js";
 let idCounter = 0;
 const nextId = (): string => `m${Date.now()}_${idCounter++}`;
 
-/** localStorage key holding the chat id of an in-flight turn (for refresh-resume). */
+/** localStorage key holding the in-flight turn (chat id + the user's message) so a
+ * page refresh can re-attach to a turn that is still running server-side. */
 const ACTIVE_KEY = "sb.activeTurn";
+
+/** The minimal record of an in-flight turn, persisted for refresh-resume. */
+interface PendingTurn {
+  id: string;
+  /** The user's message text, replayed into the UI while the turn finishes. */
+  text: string;
+}
+
+/** Read the persisted in-flight turn, tolerating the legacy id-only format. */
+function readPending(): PendingTurn | null {
+  const raw = localStorage.getItem(ACTIVE_KEY);
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as Partial<PendingTurn>;
+    if (v && typeof v.id === "string") return { id: v.id, text: typeof v.text === "string" ? v.text : "" };
+  } catch {
+    // Legacy format stored just the chat id as a bare string.
+    return { id: raw, text: "" };
+  }
+  return null;
+}
 
 /** Append a run of text to a message's ordered segments (merging adjacent text). */
 function appendTextSegment(segments: MessageSegment[] | undefined, text: string): MessageSegment[] {
@@ -73,6 +95,9 @@ export function useChat() {
   const [metrics, setMetrics] = useState<TurnMetrics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [chatId, setChatId] = useState<string | null>(null);
+  // Bumped whenever a turn is persisted to chat history, so the history sidebar
+  // can re-sync the chat list from the brain branch (it appears once saved).
+  const [chatsVersion, setChatsVersion] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
   const send = useCallback(
@@ -95,8 +120,8 @@ export function useChat() {
       const assistantId = nextId();
       setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", content: "" }]);
       setStreaming(true);
-      // Mark this chat as having an in-flight turn so a refresh can resume it.
-      localStorage.setItem(ACTIVE_KEY, id);
+      // Persist this in-flight turn (id + message) so a refresh can re-attach to it.
+      localStorage.setItem(ACTIVE_KEY, JSON.stringify({ id, text } satisfies PendingTurn));
 
       const patchAssistant = (fn: (m: ChatMessage) => ChatMessage) =>
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? fn(m) : m)));
@@ -142,6 +167,8 @@ export function useChat() {
         setStreaming(false);
         abortRef.current = null;
         localStorage.removeItem(ACTIVE_KEY);
+        // The worker has persisted this turn to chat history; let the sidebar re-sync.
+        setChatsVersion((v) => v + 1);
       }
     },
     [streaming, chatId],
@@ -199,25 +226,48 @@ export function useChat() {
   }, []);
 
   /**
-   * On page load, resume an in-flight turn if one was running for the active chat:
-   * load what's saved, and if the turn is still running server-side, poll until it
-   * finishes, then reload the completed conversation.
+   * On page load, re-attach to an in-flight turn if one was running for the active
+   * chat. The turn keeps running server-side (the worker uses `waitUntil`), but it
+   * is only saved to chat history when it finishes. So:
+   *  - if the chat is already saved, load it;
+   *  - if it is still running but not yet saved, replay the user's message + an
+   *    assistant placeholder so the running turn is visible (not a blank screen);
+   *  - poll until the turn finishes, then load the completed conversation and
+   *    re-sync the history list (the chat now exists on the brain branch).
    */
   const resumeActive = useCallback(async () => {
-    const id = localStorage.getItem(ACTIVE_KEY);
-    if (!id) return;
+    const pending = readPending();
+    if (!pending) return;
+    const { id, text } = pending;
     const running = await getTurnStatus(id);
-    await openChat(id);
+    const loaded = await openChat(id); // loads the saved record if it already exists
+
     if (!running) {
+      // The turn already finished (and, if it saved, was loaded above). Clear the
+      // marker and re-sync the sidebar so the chat shows up.
       localStorage.removeItem(ACTIVE_KEY);
+      setChatsVersion((v) => v + 1);
       return;
     }
+
+    // Still running. If nothing was loaded (the chat isn't persisted yet), seed the
+    // in-flight turn so the user sees their message + a working assistant bubble.
+    if (!loaded) {
+      setChatId(id);
+      setMessages([
+        { id: nextId(), role: "user", content: text },
+        { id: nextId(), role: "assistant", content: "" },
+      ]);
+    }
     setResuming(true);
+
     const poll = async () => {
       if (!(await getTurnStatus(id))) {
         await openChat(id);
         setResuming(false);
         localStorage.removeItem(ACTIVE_KEY);
+        // The turn just persisted to the brain branch — re-sync the chat list.
+        setChatsVersion((v) => v + 1);
         return;
       }
       setTimeout(() => void poll(), 2500);
@@ -236,6 +286,7 @@ export function useChat() {
     error,
     setError,
     chatId,
+    chatsVersion,
     newChat,
     openChat,
     resumeActive,
