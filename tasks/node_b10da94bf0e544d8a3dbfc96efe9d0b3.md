@@ -4,9 +4,11 @@ type: task
 title: "Fix config button for non-logged-in users (Second Brain)"
 summary: "Fixed the config button in the Second Brain app that was broken/inaccessible for non-logged-in users."
 createdAt: 2026-06-25T15:41:13.910Z
-updatedAt: 2026-06-25T15:41:13.910Z
+updatedAt: 2026-06-25T15:41:41.832Z
+status: done
 startDate: 2026-06-25
 endDate: 2026-06-25
+completedAt: 2026-06-25T15:41:41.592Z
 tags: ["second brain", "bug fix", "config", "auth", "non-logged-in"]
 edges:
   - { to: node_dee4723d1ba64b8b9fafe2d3c7099055, type: relates_to }
