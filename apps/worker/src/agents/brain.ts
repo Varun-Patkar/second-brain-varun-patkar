@@ -40,6 +40,15 @@ STEP 2 — CLASSIFY (turn it into a well-formed node)
 - Split distinct subjects into SEPARATE nodes (one person, one project, one concept each) rather
   than one giant note — small linked nodes retrieve far better.
 
+TASKS (scheduling)
+- A 'task' node is a to-do shown on the Tasks page as a day-by-day timeline.
+- 'startDate' (YYYY-MM-DD) is the day a task becomes active. Omit it for "do it now". Set a FUTURE
+  startDate to schedule a task — it stays under future days until that day, then appears in Today.
+  Resolve relative phrasing ("this weekend", "next Monday", "tomorrow") against TODAY'S DATE below.
+- 'endDate' (YYYY-MM-DD) is the due day. OMIT it for an INDEFINITE task — it then shows every day
+  from startDate until the user completes it. Only set endDate when there is a real deadline.
+- Never set 'completed'/'status' yourself — the user checks tasks off on the Tasks page.
+
 STEP 3 — STORE (write once)
 - BEFORE writing, graph_search for an existing node to UPDATE (e.g. the owner's profile) so you
   never create duplicates.
@@ -88,9 +97,13 @@ export function createBrainAgent(
   const tools = [...createBrainTools(ctx), ...(options.extraTools ?? [])];
   // Record how many tools/skills are active so the UI can surface the counts.
   ctx.counts = { tools: tools.length, skills: skills.length };
+  // Inject today's date so the agent can resolve relative task scheduling
+  // ("this weekend", "tomorrow") into concrete YYYY-MM-DD start/end dates.
+  const today = new Date();
+  const dateLine = `\n\nTODAY'S DATE: ${today.toISOString().slice(0, 10)} (${today.toLocaleDateString("en-US", { weekday: "long" })}).`;
   return createAgent({
     name: "brain",
-    instructions: BRAIN_INSTRUCTIONS,
+    instructions: BRAIN_INSTRUCTIONS + dateLine,
     provider,
     ...(model ? { model } : {}),
     tools,

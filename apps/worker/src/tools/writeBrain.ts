@@ -35,6 +35,16 @@ export function createWriteBrainTool(ctx: TurnContext) {
               summary: { type: "string", description: "One-line description." },
               body: { type: "string", description: "Full markdown detail." },
               tags: { type: "array", items: { type: "string" } },
+              startDate: {
+                type: "string",
+                description:
+                  "TASKS ONLY. Day the task becomes active, as YYYY-MM-DD. Omit for active-now. Use a future date to schedule a task (it stays under future days until then).",
+              },
+              endDate: {
+                type: "string",
+                description:
+                  "TASKS ONLY. Due day as YYYY-MM-DD. Omit for an INDEFINITE task that shows every day from startDate until completed.",
+              },
               edges: {
                 type: "array",
                 items: {

@@ -23,6 +23,9 @@ interface NodeRow {
   last_accessed: string | null;
   archived: number;
   content_hash: string;
+  start_date: string | null;
+  end_date: string | null;
+  completed_at: string | null;
 }
 
 function rowToNode(r: NodeRow): BrainNode {
@@ -154,13 +157,35 @@ export async function listAllEdges(
 export async function listNodesByType(
   ctx: TurnContext,
   type: string,
-): Promise<Array<{ id: string; title: string; summary: string; mdPath: string; archived: boolean; createdAt: string }>> {
+): Promise<
+  Array<{
+    id: string;
+    title: string;
+    summary: string;
+    mdPath: string;
+    archived: boolean;
+    createdAt: string;
+    startDate?: string;
+    endDate?: string;
+    completedAt?: string;
+  }>
+> {
   ctx.budget.d1();
   const res = await ctx.env.DB.prepare(
-    "SELECT id, title, summary, md_path, archived, created_at FROM nodes WHERE type = ? ORDER BY created_at DESC",
+    "SELECT id, title, summary, md_path, archived, created_at, start_date, end_date, completed_at FROM nodes WHERE type = ? ORDER BY created_at DESC",
   )
     .bind(type)
-    .all<{ id: string; title: string; summary: string; md_path: string; archived: number; created_at: string }>();
+    .all<{
+      id: string;
+      title: string;
+      summary: string;
+      md_path: string;
+      archived: number;
+      created_at: string;
+      start_date: string | null;
+      end_date: string | null;
+      completed_at: string | null;
+    }>();
   return (res.results ?? []).map((r) => ({
     id: r.id,
     title: r.title,
@@ -168,18 +193,27 @@ export async function listNodesByType(
     mdPath: r.md_path,
     archived: r.archived === 1,
     createdAt: r.created_at,
+    ...(r.start_date ? { startDate: r.start_date } : {}),
+    ...(r.end_date ? { endDate: r.end_date } : {}),
+    ...(r.completed_at ? { completedAt: r.completed_at } : {}),
   }));
 }
 
 /**
  * Set a node's `archived` flag (and bump `updated_at`). Archiving a task removes
  * it from `search()` (and therefore from LLM context) without deleting it, so it
- * still appears — checked — on the tasks page.
+ * still appears — checked — on the tasks page. `completedAt` records (or clears,
+ * when reopening) the completion timestamp that drives the past-day grouping.
  */
-export async function setNodeArchived(ctx: TurnContext, id: string, archived: boolean): Promise<void> {
+export async function setNodeArchived(
+  ctx: TurnContext,
+  id: string,
+  archived: boolean,
+  completedAt?: string | null,
+): Promise<void> {
   ctx.budget.d1();
-  await ctx.env.DB.prepare("UPDATE nodes SET archived = ?, updated_at = ? WHERE id = ?")
-    .bind(archived ? 1 : 0, nowIso(), id)
+  await ctx.env.DB.prepare("UPDATE nodes SET archived = ?, completed_at = ?, updated_at = ? WHERE id = ?")
+    .bind(archived ? 1 : 0, completedAt ?? null, nowIso(), id)
     .run();
 }
 
@@ -198,17 +232,26 @@ export async function getNodes(ctx: TurnContext, ids: string[]): Promise<BrainNo
  * the standalone FTS index for each node (delete + reinsert). */
 export async function upsertNodes(
   ctx: TurnContext,
-  nodes: Array<BrainNode & { tags?: string[]; contentHash: string }>,
+  nodes: Array<
+    BrainNode & {
+      tags?: string[];
+      contentHash: string;
+      startDate?: string;
+      endDate?: string;
+      completedAt?: string;
+    }
+  >,
 ): Promise<void> {
   if (nodes.length === 0) return;
   ctx.budget.d1();
   const upsert = ctx.env.DB.prepare(`
-    INSERT INTO nodes (id, type, title, md_path, summary, tags, ref_count, created_at, updated_at, last_accessed, archived, content_hash)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO nodes (id, type, title, md_path, summary, tags, ref_count, created_at, updated_at, last_accessed, archived, content_hash, start_date, end_date, completed_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       type = excluded.type, title = excluded.title, md_path = excluded.md_path,
       summary = excluded.summary, tags = excluded.tags, updated_at = excluded.updated_at,
-      content_hash = excluded.content_hash
+      content_hash = excluded.content_hash, start_date = excluded.start_date,
+      end_date = excluded.end_date, completed_at = excluded.completed_at
     WHERE nodes.content_hash <> excluded.content_hash`);
   const ftsDelete = ctx.env.DB.prepare("DELETE FROM nodes_fts WHERE node_id = ?");
   const ftsInsert = ctx.env.DB.prepare(
@@ -231,6 +274,9 @@ export async function upsertNodes(
         n.lastAccessed ?? null,
         n.archived ? 1 : 0,
         n.contentHash,
+        n.startDate ?? null,
+        n.endDate ?? null,
+        n.completedAt ?? null,
       ),
       ftsDelete.bind(n.id),
       ftsInsert.bind(n.id, n.title, n.summary, tags),

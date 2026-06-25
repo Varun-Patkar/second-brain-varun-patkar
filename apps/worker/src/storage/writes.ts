@@ -46,11 +46,21 @@ export async function persistWrites(ctx: TurnContext, writes: BrainWrite[]): Pro
       summary: w.summary,
       createdAt,
       updatedAt: ts,
+      ...(w.startDate ? { startDate: w.startDate } : {}),
+      ...(w.endDate ? { endDate: w.endDate } : {}),
       ...(w.tags ? { tags: w.tags } : {}),
       ...(w.edges ? { edges: w.edges } : {}),
     };
     const doc = serializeDocument(fm, w.body);
-    const hash = contentHash(w.title, w.summary, w.body, (w.tags ?? []).join(","), JSON.stringify(w.edges ?? []));
+    const hash = contentHash(
+      w.title,
+      w.summary,
+      w.body,
+      (w.tags ?? []).join(","),
+      JSON.stringify(w.edges ?? []),
+      w.startDate ?? "",
+      w.endDate ?? "",
+    );
 
     files.push({ path: mdPath, content: doc });
     nodes.push({
@@ -66,6 +76,8 @@ export async function persistWrites(ctx: TurnContext, writes: BrainWrite[]): Pro
       archived: false,
       tags: w.tags ?? [],
       contentHash: hash,
+      ...(w.startDate ? { startDate: w.startDate } : {}),
+      ...(w.endDate ? { endDate: w.endDate } : {}),
     });
     for (const e of w.edges ?? []) {
       edges.push({ id: genId("edge"), src: id, dst: e.to, type: e.type, weight: 1 });
@@ -108,10 +120,13 @@ export async function setTaskStatus(ctx: TurnContext, id: string, done: boolean)
 
   // Update the markdown source of truth (best-effort: if the file is missing we
   // still flip the D1 flag so the page/state stay consistent).
+  const completedAt = done ? nowIso() : null;
   const file = await readFile(ctx, node.mdPath);
   if (file) {
     const { frontmatter, body } = parseDocument(file.text);
     frontmatter.status = done ? "done" : "open";
+    if (done) frontmatter.completedAt = completedAt ?? nowIso();
+    else delete frontmatter.completedAt;
     frontmatter.updatedAt = nowIso();
     await commitBatch(ctx, {
       message: `brain: ${done ? "complete" : "reopen"} task ${id}`,
@@ -119,8 +134,9 @@ export async function setTaskStatus(ctx: TurnContext, id: string, done: boolean)
     });
   }
 
-  // Mirror into D1 (archived = done) so done tasks drop out of search/context.
-  await setNodeArchived(ctx, id, done);
+  // Mirror into D1 (archived = done) so done tasks drop out of search/context,
+  // recording the completion timestamp that drives past-day grouping.
+  await setNodeArchived(ctx, id, done, completedAt);
   await invalidateDoc(ctx, id);
   markDirty(ctx, id);
   return true;

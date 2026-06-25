@@ -222,6 +222,9 @@ export default {
           mdPath: n.mdPath,
           done: n.archived,
           createdAt: n.createdAt,
+          ...(n.startDate ? { startDate: n.startDate } : {}),
+          ...(n.endDate ? { endDate: n.endDate } : {}),
+          ...(n.completedAt ? { completedAt: n.completedAt } : {}),
         }));
         return json({ tasks }, { status: 200 }, corsHeaders);
       } catch (err) {

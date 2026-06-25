@@ -37,6 +37,15 @@ export function serializeDocument(fm: NodeFrontmatter, body: string): string {
   if (fm.status) {
     lines.push(`status: ${fm.status}`);
   }
+  if (fm.startDate) {
+    lines.push(`startDate: ${fm.startDate}`);
+  }
+  if (fm.endDate) {
+    lines.push(`endDate: ${fm.endDate}`);
+  }
+  if (fm.completedAt) {
+    lines.push(`completedAt: ${fm.completedAt}`);
+  }
   if (fm.tags && fm.tags.length > 0) {
     lines.push(`tags: [${fm.tags.map((t) => quote(t)).join(", ")}]`);
   }
@@ -98,6 +107,15 @@ export function parseDocument(raw: string): { frontmatter: NodeFrontmatter; body
       case "status":
         if (value === "open" || value === "done") fm.status = value;
         break;
+      case "startDate":
+        if (value) fm.startDate = value;
+        break;
+      case "endDate":
+        if (value) fm.endDate = value;
+        break;
+      case "completedAt":
+        if (value) fm.completedAt = value;
+        break;
       case "tags": {
         const inner = value.replace(/^\[/, "").replace(/\]$/, "").trim();
         fm.tags = inner ? inner.split(",").map((t) => unquote(t)) : [];
@@ -118,6 +136,9 @@ export function parseDocument(raw: string): { frontmatter: NodeFrontmatter; body
       createdAt: fm.createdAt ?? "",
       updatedAt: fm.updatedAt ?? "",
       ...(fm.status ? { status: fm.status } : {}),
+      ...(fm.startDate ? { startDate: fm.startDate } : {}),
+      ...(fm.endDate ? { endDate: fm.endDate } : {}),
+      ...(fm.completedAt ? { completedAt: fm.completedAt } : {}),
       ...(fm.tags ? { tags: fm.tags } : {}),
       ...(fm.edges ? { edges: fm.edges } : {}),
     },

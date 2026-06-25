@@ -101,6 +101,20 @@ export interface NodeFrontmatter {
   edges?: Array<{ to: string; type: EdgeType }>;
   /** For `task` nodes: completion state. Absent means open. Mirrors D1 `archived`. */
   status?: "open" | "done";
+  /**
+   * For `task` nodes: the day (YYYY-MM-DD) the task becomes active. Before this
+   * day the task is "upcoming" and grouped under future days; on/after it the task
+   * appears in "Today" until completed. Absent means active immediately.
+   */
+  startDate?: string;
+  /**
+   * For `task` nodes: the day (YYYY-MM-DD) the task is due. Absent means the task
+   * is indefinite — it keeps showing every day from `startDate` until completed.
+   * A past `endDate` on an open task marks it overdue (still shown in Today).
+   */
+  endDate?: string;
+  /** For `task` nodes: ISO timestamp the task was marked done; drives past-day grouping. Cleared when reopened. */
+  completedAt?: string;
 }
 
 /** A single write requested by the brain agent (batched into one git commit). */
@@ -113,6 +127,10 @@ export interface BrainWrite {
   body: string;
   tags?: string[];
   edges?: Array<{ to: string; type: EdgeType }>;
+  /** For `task` nodes: day (YYYY-MM-DD) the task becomes active. Omit for "active now". */
+  startDate?: string;
+  /** For `task` nodes: due day (YYYY-MM-DD). Omit for an indefinite task (shows daily until done). */
+  endDate?: string;
 }
 
 /** Result of applying a batch of writes. */
@@ -454,8 +472,14 @@ export interface TaskItem {
   summary: string;
   mdPath: string;
   done: boolean;
-  /** ISO timestamp the task node was created; drives the date-wise grouping. */
+  /** ISO timestamp the task node was created. */
   createdAt: string;
+  /** Day (YYYY-MM-DD) the task becomes active. Absent = active immediately. */
+  startDate?: string;
+  /** Due day (YYYY-MM-DD). Absent = indefinite (shows daily until done). */
+  endDate?: string;
+  /** ISO timestamp the task was completed; drives past-day grouping. Absent on open tasks. */
+  completedAt?: string;
 }
 
 /** Response of `GET /tasks` — all task nodes, including done (archived) ones. */
